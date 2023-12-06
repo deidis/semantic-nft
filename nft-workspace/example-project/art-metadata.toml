@@ -14,14 +14,18 @@ Software = ""
 # Be careful with adding tags, as during minting some of the tags might be overwritten.
 # For example, XMP-xmpRights:Certificate would be overwritten by the minting process if you provide the certificate file there (feature of Silvermind)
 
+# We can also refer to the file name relative to the this .toml file
 ["landscape.jpg"]
 # XMP-dc:Title and exif:ImageDescription
 title = "Title of the landscape photo"
 
-["portrait.jpg"]
+# We can also refer to the working folder relative to this .toml file
+["../example-project/portrait"]
 title = "Name of the portrait photo"
 # Though we set the XMP-dc:Title as to the same as exif:ImageDescription, we can still overwrite it
 "exif:ImageDescription" = "Short description of the portrait photo"
 
-["square.jpg"]
+# When the artwork doesn't have special characters in the name, we can even ommit the quotes,
+# in this case it will pick-up the file ./square/artwork.jpg
+[square]
 title = "Name of the portrait photo"

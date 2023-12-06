@@ -3,6 +3,7 @@ const {clean} = require('./src/clean')
 const inquirer = require('inquirer')
 const path = require('path')
 const fs = require('fs')
+const {ingest} = require('./src/ingest')
 
 const args = process.argv.slice(2)
 if (args.length === 0) {
@@ -10,20 +11,19 @@ if (args.length === 0) {
   process.exit(1)
 }
 
-
+// Collect files from the arguments
 const files = []
 args.forEach((arg) => {
   // It's very likely that media files are organized in subfolders,
   // so let's collect them recursively at least one level deep.
   const recursionLevel = 1
-  files.push(...collect(arg, recursionLevel))
+  // filePath can be relative or absolute, so we need to resolve it
+  files.push(...collect(path.resolve(arg), recursionLevel))
 })
 
+// Process collected files
 if (files.length > 0) {
   console.log(`Processing ${files.length} files.`)
-  files.forEach((file) => {
-    console.log(`- ${file}`)
-  })
 
   // For every file create a folder and copy the file into it,
   // this way we don't touch the original files and accumulate all the progress in one place.
@@ -43,6 +43,10 @@ if (files.length > 0) {
 
   const exiftool = require('exiftool-vendored').exiftool
 
+  files.forEach((file) => {
+    console.log(`- ${path.relative(process.cwd(), file)}`)
+  })
+
   inquirer.prompt([
     {
       type: 'confirm',
@@ -58,7 +62,50 @@ if (files.length > 0) {
       return Promise.resolve()
     }
   }).then(() => {
-    console.log('TODO: start ingestion of TOML')
+    // For every artwork there might be a toml file, we look for it in the same folder.
+    const artworkTomlFiles = []
+    files.forEach((file) => {
+      // list the dir for files ending with .toml
+      const tomlFilePaths = fs.readdirSync(path.dirname(file)).filter((file) => {
+        return path.basename(file).startsWith('art-') && file.endsWith('.toml')
+      })
+      tomlFilePaths.forEach((tomlFilePath) => {
+        const resolvedTomlFilePath = path.join(path.dirname(file), tomlFilePath)
+        if (!artworkTomlFiles.includes(resolvedTomlFilePath)) {
+          artworkTomlFiles.push(resolvedTomlFilePath)
+        }
+      })
+    })
+    // Make it unique
+    artworkTomlFiles.filter((value, index, self) => {
+      return self.indexOf(value) === index
+    })
+
+    if (artworkTomlFiles.length > 0) {
+      artworkTomlFiles.forEach((file) => {
+        console.log(`- ${path.relative(process.cwd(), file)}`)
+      })
+
+      return inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'toml',
+          // The order of files is important,
+          // to change the order one can play with the names of the files.
+          message: 'Step 2: Apply the files as metadata?',
+          default: true,
+        }
+      ]).then((answers) => {
+        if (answers.toml) {
+          console.log('Applying metadata...')
+          return ingest(artworkTomlFiles)
+        } else {
+          return Promise.resolve()
+        }
+      })
+    }
+
+    return Promise.resolve()
   }).then(() => {
     //
   }).finally(() => {

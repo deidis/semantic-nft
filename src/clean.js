@@ -4,7 +4,7 @@ const {ExifTool} = require('exiftool-vendored')
  * For some reason exiftool-vendored is throwing an error when we try to clear all metadata multiple times
  * @param {Error} err
  * @return {string}
- *
+ * @private
  */
 function _successfulCatch(err) {
   if (err.message.startsWith('No success message')) {
