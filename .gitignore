@@ -7,3 +7,7 @@ npm-debug.log
 
 nft-workspace/*
 !nft-workspace/example-project/
+
+nft-workspace/example-project/landscape/*
+nft-workspace/example-project/portrait/*
+nft-workspace/example-project/square/*

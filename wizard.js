@@ -1,8 +1,10 @@
 const {collect} = require('./src/collect')
 const {clean} = require('./src/clean')
 const inquirer = require('inquirer')
-const args = process.argv.slice(2)
+const path = require('path')
+const fs = require('fs')
 
+const args = process.argv.slice(2)
 if (args.length === 0) {
   console.log('Please provide a path to the artwork file, multiple files or a directory.')
   process.exit(1)
@@ -23,19 +25,35 @@ if (files.length > 0) {
     console.log(`- ${file}`)
   })
 
+  // For every file create a folder and copy the file into it,
+  // this way we don't touch the original files and accumulate all the progress in one place.
+  const workingArtworkFiles = []
+  files.forEach((file) => {
+    const dir = path.dirname(file)
+    const ext = path.extname(file)
+    const basename = path.basename(file, ext)
+    const newDir = path.join(dir, basename)
+    if (!fs.existsSync(newDir)) {
+      fs.mkdirSync(newDir)
+    }
+    const newFile = path.join(newDir, /* path.basename(file) */ 'artwork' + ext)
+    fs.copyFileSync(file, newFile)
+    workingArtworkFiles.push(newFile)
+  })
+
   const exiftool = require('exiftool-vendored').exiftool
 
   inquirer.prompt([
     {
       type: 'confirm',
       name: 'clean',
-      message: 'Do you want to clear all metadata for these files?',
+      message: 'Step 1: Clear all metadata for these files?',
       default: true,
     }
   ]).then((answers) => {
     if (answers.clean) {
       console.log('Clearing metadata...')
-      return clean(exiftool, files)
+      return clean(exiftool, workingArtworkFiles)
     } else {
       return Promise.resolve()
     }
