@@ -1,0 +1,27 @@
+# XMP-dc:Description. Will be set for all the artworks mentioned in this file
+description='''
+The description. It's the same for all the photos mentioned
+'''
+
+# After we processed the global tags, we will clear all other semantic tags that we support
+# However the user can clear additional tags if needed. For example:
+Software = ""
+
+# Same as clearing we can add additional tags from other vocabularies if necessary.
+# For example, we use XMP-xmpRights to specify various aspects of licensing:
+"XMP-xmpRights:Owner" = "Name Surname, Name2 Surname2"
+
+# Be careful with adding tags, as during minting some of the tags might be overwritten.
+# For example, XMP-xmpRights:Certificate would be overwritten by the minting process if you provide the certificate file there (feature of Silvermind)
+
+["landscape.jpg"]
+# XMP-dc:Title and exif:ImageDescription
+title = "Title of the landscape photo"
+
+["portrait.jpg"]
+title = "Name of the portrait photo"
+# Though we set the XMP-dc:Title as to the same as exif:ImageDescription, we can still overwrite it
+"exif:ImageDescription" = "Short description of the portrait photo"
+
+["square.jpg"]
+title = "Name of the portrait photo"

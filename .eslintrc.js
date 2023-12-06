@@ -25,5 +25,6 @@ module.exports = {
     'semi': ['error', 'never'],
     'max-len': ['error', {'code': 120}],
     'no-unused-vars': 'off',
+    'comma-dangle': 'off',
   },
 }

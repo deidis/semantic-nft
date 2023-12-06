@@ -13,3 +13,10 @@ describe('ExifTool version', function() {
     exiftool.end()
   })
 })
+
+describe('TOML vocabulary', function() {
+  const TOML = require('@iarna/toml')
+  const tomlFile = require('fs').readFileSync('nft-workspace/example-project/art-metadata.toml', 'utf8')
+  const exampleProjectDescriptor = TOML.parse(tomlFile)
+  console.log(exampleProjectDescriptor)
+})
