@@ -2,20 +2,34 @@
   "name": "semantic-nft",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "wizard.js",
   "scripts": {
+    "wizard": "node wizard.js",
+    "wiz": "node wizard.js",
     "version": "node version.js",
     "test": "mocha"
   },
-  "keywords": ["nft", "metadata", "exiftool", "semantic", "ontology", "ipfs"],
+  "keywords": [
+    "nft",
+    "metadata",
+    "exiftool",
+    "semantic",
+    "ontology",
+    "ethereum",
+    "blockchain",
+    "erc721",
+    "erc1155"
+  ],
   "author": "Evaldas Taroza <evaldas@silvermind.art>",
   "homepage": "https://www.silvermind.art",
   "license": "ISC",
-
   "dependencies": {
-    "exiftool-vendored": "^23.6.0"
+    "exiftool-vendored": "^23.6.0",
+    "inquirer": "^9.2.12"
   },
   "devDependencies": {
+    "eslint": "^8.55.0",
+    "eslint-config-google": "^0.14.0",
     "mocha": "^10.2.0"
   }
 }
