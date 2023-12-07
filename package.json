@@ -2,10 +2,9 @@
   "name": "semantic-nft",
   "version": "1.0.0",
   "description": "",
-  "main": "wizard.js",
+  "main": "main.js",
   "scripts": {
-    "wizard": "node wizard.js",
-    "wiz": "node wizard.js",
+    "main": "node main.js",
     "version": "node version.js",
     "test": "mocha"
   },

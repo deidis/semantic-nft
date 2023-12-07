@@ -19,7 +19,7 @@ const IMAGE_FILE_TYPES = [
  * @param {string[]} fileTypesByExtensionName - array of file extensions to search for
  * @return {string[]} - array of absolute paths to files
  */
-function collect(filePath, depth = 0, fileTypesByExtensionName = IMAGE_FILE_TYPES) {
+function collectFiles(filePath, depth = 0, fileTypesByExtensionName = IMAGE_FILE_TYPES) {
   const result = []
   try {
     if (fs.existsSync(filePath)) {
@@ -78,5 +78,5 @@ function _collectFilesInDir(dir, depth, currentDepth = 0) {
 }
 
 module.exports = {
-  collect,
+  collectFiles,
 }

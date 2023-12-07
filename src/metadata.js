@@ -1,6 +1,6 @@
 const path = require('path')
 const TOML = require('@iarna/toml')
-const {collect} = require('./collect')
+const {collectFiles} = require('./collectFiles')
 const {ExifTool} = require('exiftool-vendored')
 
 const __METADATA_CACHE = {}
@@ -35,20 +35,20 @@ function ingest(exiftool, tomlFilePaths) {
  * Ingests the given metadata into the given artwork file
  * @param {ExifTool} exiftool - ExifTool instance
  * @param {string} artworkPath
- * @param {any} tags
+ * @param {object} tags
  * @return {Promise<void>}
  * @private
  */
 function _ingestMetadataForSpecificArtwork(exiftool, artworkPath, tags) {
   artworkPath = artworkPath.replace('file://', '')
-  return exiftool.write(artworkPath, tags, ['-xmptoolkit=', '-overwrite_original', '-v'])
+  return exiftool.write(artworkPath, tags, ['-xmptoolkit=', '-overwrite_original'])
 }
 
 /**
  * Prepares or retrieves the metadata from the cache.
  *
  * @param {string[]|undefined|null} tomlFileAbsolutePaths - Absolute paths to the TOML files
- * @return {any} - The TOML files as JSON
+ * @return {object} - The TOML files as JSON
  */
 function getMetadata(tomlFileAbsolutePaths) {
   if (typeof tomlFileAbsolutePaths === 'undefined' || tomlFileAbsolutePaths === null) {
@@ -68,7 +68,7 @@ function getMetadata(tomlFileAbsolutePaths) {
  * Also resolve the table headers into absolute artwork file paths
  *
  * @param {string[]} tomlFileAbsolutePaths
- * @return {any} - The TOML files as JSON
+ * @return {object} - The TOML files as JSON
  */
 function prepareMetadata(tomlFileAbsolutePaths) {
   const cachekey = __CACHE_KEY(tomlFileAbsolutePaths)
@@ -106,7 +106,7 @@ function prepareMetadata(tomlFileAbsolutePaths) {
 
 /**
  * @param {string} absoluteTomlFilePath - Absolute path to the toml file
- * @param {any} tomlJson - parsed toml file
+ * @param {object} tomlJson - parsed toml file
  * @return {{string: string[]}} - A map of headers to absolute paths to the artwork files
  * @private
  */
@@ -144,7 +144,7 @@ function _mentionedArtworks(absoluteTomlFilePath, tomlJson) {
               path.sep +
               artworkPathWithoutWildcard)
         }
-        result[artworkTomlHeader] = collect(searchPath, 0)
+        result[artworkTomlHeader] = collectFiles(searchPath, 0)
       } else {
         let searchPath = artworkPathWithoutWildcard
         if (!path.isAbsolute(artworkPathWithoutWildcard)) {
@@ -156,7 +156,7 @@ function _mentionedArtworks(absoluteTomlFilePath, tomlJson) {
         if (!fileNameGivenWithExtension) {
           searchPath = path.dirname(searchPath)
         }
-        let artworkFilePaths = collect(searchPath, 0)
+        let artworkFilePaths = collectFiles(searchPath, 0)
         if (!fileNameGivenWithExtension) {
           artworkFilePaths = artworkFilePaths.filter((filePath) => {
             return path.basename(filePath).
@@ -188,13 +188,59 @@ const commonMetadataForAllArtworks = (metadata) => {
   return result
 }
 
+const artworkPaths = (metadata) => {
+  return artworkURIs(metadata).map((key) => {
+    return key.replace('file://', '')
+  })
+}
+
 const artworkURIs = (metadata) => {
   return Object.keys(metadata || getMetadata()).filter((key) => {
     return key.startsWith('file:///')
   })
 }
 
+/**
+ * For some reason exiftool-vendored is throwing an error when we try to clear all metadata multiple times
+ * @param {Error} err
+ * @return {string}
+ * @private
+ */
+function _successfulCatch(err) {
+  if (err.message.startsWith('No success message')) {
+    return 'No success message. Consider successful.'
+  } else {
+    throw err
+  }
+}
+
+/**
+ * Deletes all metadata for the given files
+ * @method
+ * @param {ExifTool} exiftool - ExifTool instance
+ * @param {string[]} absoluteFilePaths - List of files for which we want to clean up the metadata
+ * @param {boolean} overwrite - Whether to overwrite the original file or not
+ * @return {Promise} Promise object represents the result of the operation
+ */
+function clean(exiftool, absoluteFilePaths, overwrite = true) {
+  const promises = []
+  absoluteFilePaths.forEach((file) => {
+    let p
+    if (overwrite) {
+      p = exiftool.write(file, {}, ['-all=', '-overwrite_original']).catch(_successfulCatch)
+    } else {
+      p = exiftool.deleteAllTags(file).catch(_successfulCatch)
+    }
+
+    promises.push(p)
+  })
+  return Promise.all(promises)
+}
+
 module.exports = {
   ingest,
-  prepareMetadata
+  prepareMetadata,
+  clean,
+  artworkPaths,
+  artworkURIs,
 }
