@@ -1,7 +1,8 @@
-const path = require('path')
-const TOML = require('@iarna/toml')
-const {collectFiles} = require('./collectFiles')
-const {ExifTool} = require('exiftool-vendored')
+import path from 'path'
+import fs from 'fs'
+import TOML from '@iarna/toml'
+import {collectFiles} from './collectFiles.js'
+import {exiftool} from 'exiftool-vendored'
 
 const __METADATA_CACHE = {}
 const __CACHE_KEY = (tomlFileAbsolutePaths) => {
@@ -10,18 +11,17 @@ const __CACHE_KEY = (tomlFileAbsolutePaths) => {
 
 /**
  * Ingests the given TOML files into images
- * @param {ExifTool} exiftool - ExifTool instance
  * @param {string[]|undefined|null} tomlFilePaths - Absolute paths to the TOML files
  * @return {Promise<void>}
  */
-function ingest(exiftool, tomlFilePaths) {
+export function ingest(tomlFilePaths) {
   const metadata = getMetadata(tomlFilePaths)
   // console.debug(JSON.stringify(metadata, null, 2))
   const commonMetadata = commonMetadataForAllArtworks(metadata)
   const ingestingPromises = []
   artworkURIs().forEach((artworkURI) => {
-    ingestingPromises.push(_ingestMetadataForSpecificArtwork(exiftool, artworkURI, commonMetadata).then(() => {
-      return _ingestMetadataForSpecificArtwork(exiftool, artworkURI, metadata[artworkURI]).then(() => {
+    ingestingPromises.push(_ingestMetadataForSpecificArtwork(artworkURI, commonMetadata).then(() => {
+      return _ingestMetadataForSpecificArtwork(artworkURI, metadata[artworkURI]).then(() => {
         console.log(`Ingested metadata into ${artworkURI}`)
       })
     }).catch((err) => {
@@ -33,13 +33,12 @@ function ingest(exiftool, tomlFilePaths) {
 
 /**
  * Ingests the given metadata into the given artwork file
- * @param {ExifTool} exiftool - ExifTool instance
  * @param {string} artworkPath
  * @param {object} tags
  * @return {Promise<void>}
  * @private
  */
-function _ingestMetadataForSpecificArtwork(exiftool, artworkPath, tags) {
+function _ingestMetadataForSpecificArtwork(artworkPath, tags) {
   artworkPath = artworkPath.replace('file://', '')
   return exiftool.write(artworkPath, tags, ['-xmptoolkit=', '-overwrite_original'])
 }
@@ -70,14 +69,14 @@ function getMetadata(tomlFileAbsolutePaths) {
  * @param {string[]} tomlFileAbsolutePaths
  * @return {object} - The TOML files as JSON
  */
-function prepareMetadata(tomlFileAbsolutePaths) {
+export function prepareMetadata(tomlFileAbsolutePaths) {
   const cachekey = __CACHE_KEY(tomlFileAbsolutePaths)
   if (__METADATA_CACHE[cachekey]) {
     return __METADATA_CACHE[cachekey]
   }
   const result = {}
   tomlFileAbsolutePaths.forEach((tomlFileAbsolutePath) => {
-    const tomlFile = require('fs').readFileSync(tomlFileAbsolutePath, 'utf8')
+    const tomlFile = fs.readFileSync(tomlFileAbsolutePath, 'utf8')
     const tomlJson = TOML.parse(tomlFile)
     // NOTE: This is a shallow merge, so if there are duplicate keys, the last one wins
     Object.assign(result, tomlJson)
@@ -188,13 +187,13 @@ const commonMetadataForAllArtworks = (metadata) => {
   return result
 }
 
-const artworkPaths = (metadata) => {
+export const artworkPaths = (metadata) => {
   return artworkURIs(metadata).map((key) => {
     return key.replace('file://', '')
   })
 }
 
-const artworkURIs = (metadata) => {
+export const artworkURIs = (metadata) => {
   return Object.keys(metadata || getMetadata()).filter((key) => {
     return key.startsWith('file:///')
   })
@@ -217,12 +216,11 @@ function _successfulCatch(err) {
 /**
  * Deletes all metadata for the given files
  * @method
- * @param {ExifTool} exiftool - ExifTool instance
  * @param {string[]} absoluteFilePaths - List of files for which we want to clean up the metadata
  * @param {boolean} overwrite - Whether to overwrite the original file or not
  * @return {Promise} Promise object represents the result of the operation
  */
-function clean(exiftool, absoluteFilePaths, overwrite = true) {
+export function clean(absoluteFilePaths, overwrite = true) {
   const promises = []
   absoluteFilePaths.forEach((file) => {
     let p
@@ -235,12 +233,4 @@ function clean(exiftool, absoluteFilePaths, overwrite = true) {
     promises.push(p)
   })
   return Promise.all(promises)
-}
-
-module.exports = {
-  ingest,
-  prepareMetadata,
-  clean,
-  artworkPaths,
-  artworkURIs,
 }

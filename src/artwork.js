@@ -1,5 +1,5 @@
-const fs = require('fs')
-const path = require('path')
+import fs from 'fs'
+import path from 'path'
 
 /**
  * Prepare every artwork for NFT processing
@@ -7,7 +7,7 @@ const path = require('path')
  * @param {object | undefined | null} metadata - Metadata from the TOML file, if needs fixing
  * @return {{string: string}} - Map of original artwork file to working file
  */
-function prepare(originalArtworkAbsolutePaths, metadata) {
+export function prepare(originalArtworkAbsolutePaths, metadata) {
   const result = {}
   originalArtworkAbsolutePaths.forEach((artworkFile) => {
     const dir = path.dirname(artworkFile)
@@ -31,8 +31,4 @@ function prepare(originalArtworkAbsolutePaths, metadata) {
   })
 
   return result
-}
-
-module.exports = {
-  prepare,
 }

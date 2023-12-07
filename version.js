@@ -1,7 +1,5 @@
-const ExifTool = require('exiftool-vendored').ExifTool
-const exiftool = new ExifTool({taskTimeoutMillis: 5000})
+import {exiftool} from 'exiftool-vendored'
 exiftool
     .version()
     .then((version) => console.log(`ExifTool v${version}`))
-
-exiftool.end(true)
+    .finally(() => exiftool.end())

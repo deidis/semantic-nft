@@ -1,7 +1,8 @@
-const {collectFiles} = require('./src/collectFiles')
-const path = require('path')
-const {ingest, prepareMetadata, clean, artworkPaths} = require('./src/metadata')
-const {prepare} = require('./src/artwork')
+import path from 'path'
+import {ingest, prepareMetadata, clean, artworkPaths} from './src/metadata.js'
+import {prepare} from './src/artwork.js'
+import {collectFiles} from './src/collectFiles.js'
+import {exiftool} from 'exiftool-vendored'
 
 const args = process.argv.slice(2)
 if (args.length === 0) {
@@ -30,13 +31,11 @@ originalArtworkPaths.forEach((file) => {
 console.log('Preparing working artwork files...')
 const workingFiles = prepare(originalArtworkPaths, metadata)
 
-const exiftool = require('exiftool-vendored').exiftool
-
 console.log('Cleaning metadata...')
-clean(exiftool, Object.values(workingFiles))
+clean(Object.values(workingFiles))
     .then(() => {
       console.log('Ingesting metadata...')
-      return ingest(exiftool)
+      return ingest()
     }).catch((err) => {
       console.error(err)
     }).finally(() => {

@@ -1,5 +1,5 @@
-const fs = require('fs')
-const path = require('path')
+import fs from 'fs'
+import path from 'path'
 
 const IMAGE_FILE_TYPES = [
   'jpg',
@@ -19,7 +19,7 @@ const IMAGE_FILE_TYPES = [
  * @param {string[]} fileTypesByExtensionName - array of file extensions to search for
  * @return {string[]} - array of absolute paths to files
  */
-function collectFiles(filePath, depth = 0, fileTypesByExtensionName = IMAGE_FILE_TYPES) {
+export function collectFiles(filePath, depth = 0, fileTypesByExtensionName = IMAGE_FILE_TYPES) {
   const result = []
   try {
     if (fs.existsSync(filePath)) {
@@ -75,8 +75,4 @@ function _collectFilesInDir(dir, depth, currentDepth = 0) {
     }
   })
   return result
-}
-
-module.exports = {
-  collectFiles,
 }

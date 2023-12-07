@@ -1,7 +1,8 @@
-const assert = require('assert')
+import {exiftool} from 'exiftool-vendored'
+import assert from 'assert'
+import {calculateCID} from '../src/ipfs.js'
+
 describe('ExifTool version', function() {
-  const ExifTool = require('exiftool-vendored').ExifTool
-  const exiftool = new ExifTool({taskTimeoutMillis: 5000})
   const expectedVersion = '12.70'
 
   it(`should be ${expectedVersion} or later`, async function() {
@@ -14,9 +15,17 @@ describe('ExifTool version', function() {
   })
 })
 
-describe('TOML vocabulary', function() {
-  const TOML = require('@iarna/toml')
-  const tomlFile = require('fs').readFileSync('nft-workspace/example-project/art-metadata.toml', 'utf8')
-  const exampleProjectDescriptor = TOML.parse(tomlFile)
-  console.log(exampleProjectDescriptor)
+// describe('TOML vocabulary', function() {
+//   const tomlFile = fs.readFileSync('nft-workspace/example-project/art-metadata.toml', 'utf8')
+//   const exampleProjectDescriptor = TOML.parse(tomlFile)
+//   console.log(exampleProjectDescriptor)
+// })
+
+describe('File on IPFS', function() {
+  it(`a known file on IPFS should have a known immutable CID`, async function() {
+    // You can upload the file on some pinning service, and you'll have this CID, hence I'm hardcoding it here
+    const cid = 'bafybeia2tcrp6lr7r3bn2d5degyzd3vwrfdfhxy4bkrao66fx63f2j5t6u'
+    const result = await calculateCID('nft-workspace/example-project/square.jpg')
+    assert.equal(result, cid)
+  })
 })
