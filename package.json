@@ -25,8 +25,7 @@
   "license": "ISC",
   "dependencies": {
     "@iarna/toml": "github:iarna/iarna-toml",
-    "exiftool-vendored": "^23.6.0",
-    "inquirer": "^8.2.6"
+    "exiftool-vendored": "^23.6.0"
   },
   "devDependencies": {
     "eslint": "^8.55.0",

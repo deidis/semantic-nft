@@ -29,3 +29,6 @@ title = "Name of the portrait photo"
 # in this case it will pick-up the file ./square/artwork.jpg
 [square]
 title = "Name of the portrait photo"
+
+[notanartwork]
+title="fake title"

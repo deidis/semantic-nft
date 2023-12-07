@@ -1,7 +1,7 @@
 const fs = require('fs')
 const path = require('path')
 
-const supportedImageFileExtensions = [
+const IMAGE_FILE_TYPES = [
   'jpg',
   'jpeg',
   'png',
@@ -16,20 +16,23 @@ const supportedImageFileExtensions = [
 /**
  * @param {string} filePath - absolute path to file or directory
  * @param {number} depth - how deep to search for files in directories
+ * @param {string[]} fileTypesByExtensionName - array of file extensions to search for
  * @return {string[]} - array of absolute paths to files
  */
-function collect(filePath, depth) {
+function collect(filePath, depth = 0, fileTypesByExtensionName = IMAGE_FILE_TYPES) {
   const result = []
   try {
-    const stats = fs.statSync(filePath)
-    if (stats.isDirectory()) {
-      if (filePath.startsWith('.')) {
-        return result
-      } else {
-        result.push(..._collectFilesInDir(filePath, depth))
+    if (fs.existsSync(filePath)) {
+      const stats = fs.statSync(filePath)
+      if (stats.isDirectory()) {
+        if (filePath.startsWith('.')) {
+          return result
+        } else {
+          result.push(..._collectFilesInDir(filePath, depth))
+        }
+      } else if (stats.isFile()) {
+        result.push(filePath)
       }
-    } else if (stats.isFile()) {
-      result.push(filePath)
     }
   } catch (err) {
     console.error(`Error accessing path: ${filePath}`, err)
@@ -37,7 +40,7 @@ function collect(filePath, depth) {
 
   return result.filter((file) => {
     const extension = file.split('.').pop().toLowerCase()
-    return supportedImageFileExtensions.includes(extension)
+    return fileTypesByExtensionName.includes(extension) || fileTypesByExtensionName.includes(`.${extension}`)
   })
 }
 
