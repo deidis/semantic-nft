@@ -33,9 +33,9 @@ const workingFiles = prepare(originalArtworkPaths, metadata)
 
 console.log('Cleaning metadata...')
 clean(Object.values(workingFiles))
-    .then(() => {
+    .then(async () => {
       console.log('Ingesting metadata...')
-      return ingest()
+      await ingest()
     }).catch((err) => {
       console.error(err)
     }).finally(() => {

@@ -19,16 +19,22 @@ Software = ""
 # XMP-dc:Title and exif:ImageDescription
 title = "Title of the landscape photo"
 
+# We can dictate what format will the preview be generated, and what metadata it should have (overriding form the artwork)
+["landscape/preview.webp"]
+title = "Preview for the landscape photo"
+
+
 # We can also refer to the working folder relative to this .toml file
 ["../example-project/portrait"]
 title = "Name of the portrait photo"
 # Though we set the XMP-dc:Title as to the same as exif:ImageDescription, we can still overwrite it
-"exif:ImageDescription" = "Short description of the portrait photo"
+"Exif:ImageDescription" = "Short description of the portrait photo"
 
 # When the artwork doesn't have special characters in the name, we can even ommit the quotes,
 # in this case it will pick-up the file ./square/artwork.jpg
 [square]
 title = "Name of the portrait photo"
 
+# As there's no file in the current dir, this table will be kept as is
 [notanartwork]
 title="fake title"

@@ -3,6 +3,11 @@ import fs from 'fs'
 import TOML from '@iarna/toml'
 import {collectFiles} from './collectFiles.js'
 import {exiftool} from 'exiftool-vendored'
+import {normalize} from './metadataNormalizer.js'
+import {
+  ARTWORK_FILE_NAME_WITHOUT_EXT,
+  ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT,
+} from './artwork.js'
 
 const __METADATA_CACHE = {}
 const __CACHE_KEY = (tomlFileAbsolutePaths) => {
@@ -15,7 +20,7 @@ const __CACHE_KEY = (tomlFileAbsolutePaths) => {
  * @return {Promise<void>}
  */
 export function ingest(tomlFilePaths) {
-  const metadata = getMetadata(tomlFilePaths)
+  const metadata = _getMetadata(tomlFilePaths)
   // console.debug(JSON.stringify(metadata, null, 2))
   const commonMetadata = commonMetadataForAllArtworks(metadata)
   const ingestingPromises = []
@@ -49,9 +54,10 @@ function _ingestMetadataForSpecificArtwork(artworkPath, tags) {
  * @param {string[]|undefined|null} tomlFileAbsolutePaths - Absolute paths to the TOML files
  * @return {object} - The TOML files as JSON
  */
-function getMetadata(tomlFileAbsolutePaths) {
+function _getMetadata(tomlFileAbsolutePaths) {
   if (typeof tomlFileAbsolutePaths === 'undefined' || tomlFileAbsolutePaths === null) {
     if (Object.keys(__METADATA_CACHE).length === 0) {
+      console.warn('Metadata has not been initialized!')
       return {}
     } else {
       // Normally it's only one record in the cache anyway
@@ -96,7 +102,7 @@ export function prepareMetadata(tomlFileAbsolutePaths) {
     }
   })
 
-  // TODO: recognize the keys in metadata and convert them into tags
+  normalize(result)
 
   __METADATA_CACHE[cachekey] = result
 
@@ -131,6 +137,9 @@ function _mentionedArtworks(absoluteTomlFilePath, tomlJson) {
        * ...
        */
       const artworkTomlHeader = tomlJsonKey
+      const artworkFileNameWithoutExtension = path.basename(artworkTomlHeader, path.extname(artworkTomlHeader))
+
+      // Just get rid of the wildcard, which is just syntactic sugar
       let artworkPathWithoutWildcard = artworkTomlHeader
       if (artworkTomlHeader.endsWith('*')) {
         artworkPathWithoutWildcard = artworkTomlHeader.substring(0, artworkTomlHeader.length - 1)
@@ -151,18 +160,30 @@ function _mentionedArtworks(absoluteTomlFilePath, tomlJson) {
               path.sep +
               artworkPathWithoutWildcard)
         }
+
         const fileNameGivenWithExtension = path.extname(artworkPathWithoutWildcard).length > 1
         if (!fileNameGivenWithExtension) {
           searchPath = path.dirname(searchPath)
         }
-        let artworkFilePaths = collectFiles(searchPath, 0)
-        if (!fileNameGivenWithExtension) {
-          artworkFilePaths = artworkFilePaths.filter((filePath) => {
+
+        // Before jumping into the search, let's see if we are referring
+        // to a preview files (which may not yet exist, e.g. during the first run).
+        // This would be used to set the metadata for yet to be created preview image,
+        // but that image must have the extension provided
+        // (which is also serves as the instruction of which mime type to use for preview)
+
+        if (fileNameGivenWithExtension) {
+          if (artworkFileNameWithoutExtension === ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT) {
+            result[artworkTomlHeader] = [searchPath]
+          } else {
+            result[artworkTomlHeader] = collectFiles(searchPath, 0)
+          }
+        } else {
+          result[artworkTomlHeader] = collectFiles(searchPath, 0).filter((filePath) => {
             return path.basename(filePath).
-                startsWith(path.basename(artworkPathWithoutWildcard))
+                startsWith(artworkFileNameWithoutExtension)
           })
         }
-        result[artworkTomlHeader] = artworkFilePaths
       }
 
       if (result[artworkTomlHeader].length === 0) {
@@ -175,7 +196,7 @@ function _mentionedArtworks(absoluteTomlFilePath, tomlJson) {
 }
 
 const commonMetadataForAllArtworks = (metadata) => {
-  const tomlJson = metadata || getMetadata()
+  const tomlJson = metadata || _getMetadata()
   const result = {}
   for (const tomlJsonKey in tomlJson) {
     if (!(typeof tomlJson[tomlJsonKey] === 'object' &&
@@ -194,9 +215,40 @@ export const artworkPaths = (metadata) => {
 }
 
 export const artworkURIs = (metadata) => {
-  return Object.keys(metadata || getMetadata()).filter((key) => {
+  return Object.keys(metadata || _getMetadata()).filter((key) => {
     return key.startsWith('file:///')
+  }).filter((uri, index, uris) => {
+    // If the uri is a preview image of some artwork, then we don't want to include it
+    if (path.basename(uri, path.extname(uri)).endsWith(ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT)) {
+      const previewUri = uri
+      // check if it's a preview of already included artwork
+      return uris.filter((uriToCheck) => {
+        if (path.basename(uriToCheck, path.extname(uriToCheck)) === ARTWORK_FILE_NAME_WITHOUT_EXT) {
+          if (path.dirname(path.basename(uriToCheck)) === path.dirname(path.basename(previewUri))) {
+            return previewUri.startsWith(`${path.dirname(uriToCheck)}}`)
+          }
+        } else {
+          return previewUri.startsWith(`${path.dirname(uriToCheck)}`+
+              `/${path.basename(uriToCheck, path.extname(uriToCheck))}`)
+        }
+      }).length === 1 // If we found only itself, then it's an artwork named "preview"
+    }
+    return true
   })
+}
+
+export const artworkPreviewFileExtension = (artworkAbsolutePathOrUri, metadata) => {
+  const filtered = Object.keys(metadata || _getMetadata()).filter((key) => {
+    return key.startsWith(`file://${path.dirname(artworkAbsolutePathOrUri)}`+
+        `/${path.basename(artworkAbsolutePathOrUri, path.extname(artworkAbsolutePathOrUri))}`+
+        `/${ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT}`)
+  })
+
+  if (filtered.length === 1) {
+    return path.extname(filtered[0])
+  } else {
+    return path.extname(artworkAbsolutePathOrUri)
+  }
 }
 
 /**

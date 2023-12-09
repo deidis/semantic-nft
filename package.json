@@ -28,7 +28,8 @@
     "exiftool-vendored": "^23.6.0",
     "files-from-path": "^1.0.4",
     "ipfs-car": "^1.0.0",
-    "multiformats": "^12.1.3"
+    "multiformats": "^12.1.3",
+    "sharp": "^0.33.0"
   },
   "devDependencies": {
     "eslint": "^8.55.0",
