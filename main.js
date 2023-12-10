@@ -1,8 +1,9 @@
 import path from 'path'
 import {ingest, prepareMetadata, clean, artworkPaths} from './src/metadata.js'
-import {prepare} from './src/artwork.js'
+import {prepareArtworks} from './src/artwork.js'
 import {collectFiles} from './src/collectFiles.js'
 import {exiftool} from 'exiftool-vendored'
+import {prepareCertificates} from './src/certificate.js'
 
 const args = process.argv.slice(2)
 if (args.length === 0) {
@@ -29,13 +30,17 @@ originalArtworkPaths.forEach((file) => {
 })
 
 console.log('Preparing working artwork files...')
-const workingFiles = prepare(originalArtworkPaths, metadata)
+const workingFiles = prepareArtworks(originalArtworkPaths, metadata)
+console.log(JSON.stringify(metadata, null, 2))
 
 console.log('Cleaning metadata...')
 clean(Object.values(workingFiles))
     .then(async () => {
       console.log('Ingesting metadata...')
       await ingest()
+
+      console.log('Prepare crtificates of authenticity...')
+      prepareCertificates(metadata)
     }).catch((err) => {
       console.error(err)
     }).finally(() => {

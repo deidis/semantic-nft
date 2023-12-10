@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 
-const IMAGE_FILE_TYPES = [
+export const SUPPORTED_IMAGE_FILE_TYPES = [
   'jpg',
   'jpeg',
   'png',
@@ -19,7 +19,7 @@ const IMAGE_FILE_TYPES = [
  * @param {string[]} fileTypesByExtensionName - array of file extensions to search for
  * @return {string[]} - array of absolute paths to files
  */
-export function collectFiles(filePath, depth = 0, fileTypesByExtensionName = IMAGE_FILE_TYPES) {
+export function collectFiles(filePath, depth = 0, fileTypesByExtensionName = SUPPORTED_IMAGE_FILE_TYPES) {
   const result = []
   try {
     if (fs.existsSync(filePath)) {

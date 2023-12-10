@@ -25,6 +25,8 @@
   "license": "ISC",
   "dependencies": {
     "@iarna/toml": "github:iarna/iarna-toml",
+    "@signpdf/signpdf": "^3.1.0",
+    "@signpdf/utils": "^3.1.0",
     "exiftool-vendored": "^23.6.0",
     "files-from-path": "^1.0.4",
     "ipfs-car": "^1.0.0",

@@ -8,6 +8,12 @@ dependencies:
   '@iarna/toml':
     specifier: github:iarna/iarna-toml
     version: github.com/iarna/iarna-toml/3f1b842d9fe9aaac08ea9265694a56fe5203dc16
+  '@signpdf/signpdf':
+    specifier: ^3.1.0
+    version: 3.1.0
+  '@signpdf/utils':
+    specifier: ^3.1.0
+    version: 3.1.0
   exiftool-vendored:
     specifier: ^23.6.0
     version: 23.6.0
@@ -443,6 +449,18 @@ packages:
 
   /@protobufjs/utf8@1.1.0:
     resolution: {integrity: sha512-Vvn3zZrhQZkkBE8LSuW3em98c0FwgO4nxzv6OdSxPKJIEKY2bGbHn+mhGIPerzI4twdxaP8/0+06HBpwf345Lw==}
+    dev: false
+
+  /@signpdf/signpdf@3.1.0:
+    resolution: {integrity: sha512-VIPFzfI/Aj/r2Yh5xjvsaP7CgnRiPfrvA6lYi4qP1S7c/Kfn5B1JVbJrpBDaiyeqymucD3N6iBaJE2HM6CPT4w==}
+    engines: {node: '>=12'}
+    dependencies:
+      '@signpdf/utils': 3.1.0
+    dev: false
+
+  /@signpdf/utils@3.1.0:
+    resolution: {integrity: sha512-0dQvSjQ6HJnk377tzOFlP6zoYxmG9MynBXkcG0xK7LVEsNStT70e3I8s06b0U+F5w1qdmOxDvha20FHQ5jrNNw==}
+    engines: {node: '>=12', yarn: '>=1.22.18'}
     dev: false
 
   /@types/luxon@3.3.7:

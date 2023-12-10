@@ -1,13 +1,13 @@
 import path from 'path'
 import fs from 'fs'
 import TOML from '@iarna/toml'
-import {collectFiles} from './collectFiles.js'
+import {collectFiles, SUPPORTED_IMAGE_FILE_TYPES} from './collectFiles.js'
 import {exiftool} from 'exiftool-vendored'
-import {normalize} from './metadataNormalizer.js'
 import {
   ARTWORK_FILE_NAME_WITHOUT_EXT,
   ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT,
 } from './artwork.js'
+import {CERTIFICATE_FILE_NAME_WITHOUT_EXT} from './certificate.js'
 
 const __METADATA_CACHE = {}
 const __CACHE_KEY = (tomlFileAbsolutePaths) => {
@@ -16,11 +16,11 @@ const __CACHE_KEY = (tomlFileAbsolutePaths) => {
 
 /**
  * Ingests the given TOML files into images
- * @param {string[]|undefined|null} tomlFilePaths - Absolute paths to the TOML files
+ * @param {string[]|undefined|null} metadata - Absolute paths to the TOML files
  * @return {Promise<void>}
  */
-export function ingest(tomlFilePaths) {
-  const metadata = _getMetadata(tomlFilePaths)
+export function ingest(metadata) {
+  metadata = metadata || _getMetadata()
   // console.debug(JSON.stringify(metadata, null, 2))
   const commonMetadata = commonMetadataForAllArtworks(metadata)
   const ingestingPromises = []
@@ -34,6 +34,28 @@ export function ingest(tomlFilePaths) {
     }))
   })
   return Promise.all(ingestingPromises)
+}
+
+/**
+ * Deletes all metadata for the given files
+ * @method
+ * @param {string[]} absoluteFilePaths - List of files for which we want to clean up the metadata
+ * @param {boolean} overwrite - Whether to overwrite the original file or not
+ * @return {Promise} Promise object represents the result of the operation
+ */
+export function clean(absoluteFilePaths, overwrite = true) {
+  const promises = []
+  absoluteFilePaths.forEach((file) => {
+    let p
+    if (overwrite) {
+      p = exiftool.write(file, {}, ['-all=', '-overwrite_original']).catch(_successfulCatch)
+    } else {
+      p = exiftool.deleteAllTags(file).catch(_successfulCatch)
+    }
+
+    promises.push(p)
+  })
+  return Promise.all(promises)
 }
 
 /**
@@ -102,7 +124,107 @@ export function prepareMetadata(tomlFileAbsolutePaths) {
     }
   })
 
-  normalize(result)
+  _normalizeFields(result)
+
+  // Adjust the originally referenced certificate
+  artworkURIs(result).forEach((uri) => {
+    let certificatePath = result[uri]['XMP-xmpRights:Certificate']
+    const certificatePathIsInlineTable = (typeof certificatePath === 'object' &&
+        certificatePath !== null &&
+        !Array.isArray(certificatePath))
+    if (certificatePathIsInlineTable) {
+      certificatePath = Object.keys(certificatePath)[0]
+    }
+
+    if (certificatePath && path.extname(certificatePath).toLowerCase() === '.pdf') {
+      if (!certificatePath.startsWith('file://')) {
+        if (path.isAbsolute(certificatePath)) {
+          certificatePath = `file://${certificatePath}`
+        } else {
+          // Relative paths are relative to the artwork file
+          const originalArtworkNameWithoutExt = path.basename(uri, path.extname(uri))
+          const absoluteDir = path.dirname(uri).replace('file://', '')
+
+          if (!certificatePath.startsWith('.')) {
+            certificatePath = `./${certificatePath}`
+          }
+
+          if (!certificatePath.endsWith(`${originalArtworkNameWithoutExt}/${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`)) {
+            certificatePath = certificatePath.replace(
+                `/${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`,
+                `/${originalArtworkNameWithoutExt}/${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`
+            )
+          }
+
+          // Now resolve the relative path to the absolute path
+          certificatePath = path.resolve(absoluteDir + path.sep + certificatePath)
+        }
+      } else {
+        // All good, it's already globally written with file://
+      }
+    }
+
+    if (certificatePathIsInlineTable) {
+      const inlineTable = Object.values(result[uri]['XMP-xmpRights:Certificate'])[0]
+      delete result[uri]['XMP-xmpRights:Certificate'][
+          Object.keys(result[uri]['XMP-xmpRights:Certificate'])[0]
+      ]
+      result[uri]['XMP-xmpRights:Certificate'][`file://${certificatePath}`] = inlineTable
+    } else {
+      result[uri]['XMP-xmpRights:Certificate'] = `file://${certificatePath}`
+    }
+  })
+
+  Object.keys(result).filter((key) => {
+    return !key.startsWith('file://') && key.endsWith(`${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`)
+  }).forEach((certificatePath) => {
+    if (path.isAbsolute(certificatePath)) {
+      result[`file://${certificatePath}`] = result[certificatePath]
+      delete result[certificatePath]
+    } else {
+      // Relative paths are relative to the artwork file
+      const artworkNameWithoutExt = path.basename(path.dirname(certificatePath))
+      if (artworkNameWithoutExt.endsWith('.') && artworkNameWithoutExt.startsWith('.')) {
+        throw Error(`Certificate context (artwork) not provided. It should be <artwork>/certificate.pdf`)
+      } else {
+        let adjustedCertificatePath = certificatePath.replace(
+            `${artworkNameWithoutExt}/${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`,
+            `${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`
+        )
+
+        if (!adjustedCertificatePath.startsWith('.')) {
+          adjustedCertificatePath = `./${adjustedCertificatePath}`
+        }
+
+        if (!adjustedCertificatePath.endsWith(`/${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`)) {
+          artworkURIs(result).forEach((uri) => {
+            if (path.basename(uri, path.extname(uri)) === artworkNameWithoutExt) {
+              let specificCertificateUri = result[uri]['XMP-xmpRights:Certificate']
+              const specificCertificateUriIsInlineTable = (typeof specificCertificateUri === 'object' &&
+                  specificCertificateUri !== null &&
+                  !Array.isArray(specificCertificateUri))
+              if (specificCertificateUriIsInlineTable) {
+                specificCertificateUri = Object.keys(specificCertificateUri)[0]
+              }
+              if (path.basename(specificCertificateUri) === path.basename(adjustedCertificatePath)) {
+                result[specificCertificateUri] = result[certificatePath]
+                delete result[certificatePath]
+              }
+            }
+          })
+        } else {
+          artworkURIs(result).forEach((uri) => {
+            if (path.basename(uri, path.extname(uri)) === artworkNameWithoutExt) {
+              adjustedCertificatePath = path.dirname(uri).replace('file://', '') +
+                  path.sep + artworkNameWithoutExt + path.sep + adjustedCertificatePath
+              result[`file://${path.resolve(adjustedCertificatePath)}`] = result[certificatePath]
+              delete result[certificatePath]
+            }
+          })
+        }
+      }
+    }
+  })
 
   __METADATA_CACHE[cachekey] = result
 
@@ -216,7 +338,7 @@ export const artworkPaths = (metadata) => {
 
 export const artworkURIs = (metadata) => {
   return Object.keys(metadata || _getMetadata()).filter((key) => {
-    return key.startsWith('file:///')
+    return key.startsWith('file://')
   }).filter((uri, index, uris) => {
     // If the uri is a preview image of some artwork, then we don't want to include it
     if (path.basename(uri, path.extname(uri)).endsWith(ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT)) {
@@ -233,7 +355,7 @@ export const artworkURIs = (metadata) => {
         }
       }).length === 1 // If we found only itself, then it's an artwork named "preview"
     }
-    return true
+    return SUPPORTED_IMAGE_FILE_TYPES.includes(path.extname(uri).toLowerCase().replace('.', ''))
   })
 }
 
@@ -266,23 +388,29 @@ function _successfulCatch(err) {
 }
 
 /**
- * Deletes all metadata for the given files
- * @method
- * @param {string[]} absoluteFilePaths - List of files for which we want to clean up the metadata
- * @param {boolean} overwrite - Whether to overwrite the original file or not
- * @return {Promise} Promise object represents the result of the operation
+ *
+ * @param {Object} metadata
+ * @private
  */
-export function clean(absoluteFilePaths, overwrite = true) {
-  const promises = []
-  absoluteFilePaths.forEach((file) => {
-    let p
-    if (overwrite) {
-      p = exiftool.write(file, {}, ['-all=', '-overwrite_original']).catch(_successfulCatch)
-    } else {
-      p = exiftool.deleteAllTags(file).catch(_successfulCatch)
-    }
+function _normalizeFields(metadata) {
+  // console.log(metadata)
+  // TODO: recognize the keys in metadata and convert them into tags
 
-    promises.push(p)
+  // Normalize the "certificate"
+  Object.keys(metadata).filter((key) => {
+    return key.toLowerCase() === 'certificate' || key.toLowerCase() === 'xmp-xmprights:certificate'
+  }).forEach((key) => {
+    metadata['XMP-xmpRights:Certificate'] = metadata[key]
+    delete metadata[key]
   })
-  return Promise.all(promises)
+  artworkURIs(metadata).forEach((artworkURI) => {
+    Object.keys(metadata[artworkURI]).filter((key) => {
+      return key.toLowerCase() === 'certificate' || key.toLowerCase() === 'xmp-xmprights:certificate'
+    }).forEach((key) => {
+      metadata[artworkURI]['XMP-xmpRights:Certificate'] = metadata[artworkURI][key]
+      delete metadata[artworkURI][key]
+    })
+  })
+
+  // TODO: resolve the variables
 }

@@ -9,35 +9,42 @@ export const ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT = 'preview'
 /**
  * Prepare every artwork for NFT processing
  * @param {string[]} originalArtworkAbsolutePaths - Absolute paths to original artwork files
- * @param {object | undefined | null} metadata - Metadata from the TOML file, if needs fixing
+ * @param {object | undefined | null} preparedMetadata - Metadata from the TOML file, if needs fixing
  * @return {{string: string}} - Map of original artwork file to working file
  */
-export function prepare(originalArtworkAbsolutePaths, metadata) {
+export function prepareArtworks(originalArtworkAbsolutePaths, preparedMetadata) {
   const result = {}
-  originalArtworkAbsolutePaths.forEach(async (artworkFile) => {
-    const dir = path.dirname(artworkFile)
-    const ext = path.extname(artworkFile)
-    const basename = path.basename(artworkFile, ext)
+  originalArtworkAbsolutePaths.forEach(async (originalArtworkAbsolutePath) => {
+    const dir = path.dirname(originalArtworkAbsolutePath)
+    const ext = path.extname(originalArtworkAbsolutePath)
+    const basename = path.basename(originalArtworkAbsolutePath, ext)
     const newDir = path.join(dir, basename)
     if (!fs.existsSync(newDir)) {
       fs.mkdirSync(newDir)
     }
-    const newFile = path.join(newDir, /* path.basename(file) */ `${ARTWORK_FILE_NAME_WITHOUT_EXT}${ext}`)
-    fs.copyFileSync(artworkFile, newFile)
+
+    // Copy the artwork to the working directory
+    const workingArtworkAbsolutePath = path.join(newDir, `${ARTWORK_FILE_NAME_WITHOUT_EXT}${ext}`)
+    fs.copyFileSync(originalArtworkAbsolutePath, workingArtworkAbsolutePath)
 
     // Point to working file
-    result[artworkFile] = newFile
+    result[originalArtworkAbsolutePath] = workingArtworkAbsolutePath
+
+    _copyLicenseToWorkingDir(preparedMetadata)
 
     // Fix metadata
-    if (metadata) {
+    if (preparedMetadata) {
       // Update the metadata to point to the working file
-      metadata[`file://${newFile}`] = metadata[`file://${artworkFile}`]
-      delete metadata[`file://${artworkFile}`]
+      preparedMetadata[`file://${workingArtworkAbsolutePath}`] = preparedMetadata[`file://${originalArtworkAbsolutePath}`]
+      delete preparedMetadata[`file://${originalArtworkAbsolutePath}`]
 
-      const previewFile = await _createPreview(newFile, artworkPreviewFileExtension(artworkFile, metadata))
+      const previewFile = await _createPreview(
+          workingArtworkAbsolutePath,
+          artworkPreviewFileExtension(originalArtworkAbsolutePath, preparedMetadata)
+      )
 
-      const artworkTitle = metadata[`file://${newFile}`]['XMP-dc:Title'] ||
-          metadata[`file://${newFile}`]['Exif:ImageDescription']
+      const artworkTitle = preparedMetadata[`file://${workingArtworkAbsolutePath}`]['XMP-dc:Title'] ||
+          preparedMetadata[`file://${workingArtworkAbsolutePath}`]['Exif:ImageDescription']
 
       // Update the title on the preview image, so that it's clear that it's not the real artwork
       const previewImageTitle = {}
@@ -51,13 +58,13 @@ export function prepare(originalArtworkAbsolutePaths, metadata) {
           previewImageTitle['Exif:ImageDescription'] = 'Preview'
       }
 
-      metadata[`file://${previewFile}`] = {
-        ...metadata[`file://${artworkFile}`],
+      preparedMetadata[`file://${previewFile}`] = {
+        ...preparedMetadata[`file://${originalArtworkAbsolutePath}`],
         ...previewImageTitle,
-        ...metadata[`file://${previewFile}`] // Keep any prescribed metadata
+        ...preparedMetadata[`file://${previewFile}`] // Keep any prescribed metadata
       }
     } else {
-      await _createPreview(newFile)
+      await _createPreview(workingArtworkAbsolutePath)
     }
   })
 
@@ -96,4 +103,38 @@ async function _createPreview(readyArtworkAbsolutePath, extensionHint = null) {
       .then(async () => {
         return previewFilePath
       })
+}
+
+/**
+ * @param {object | null | undefined} metadata
+ * @private
+ */
+function _copyLicenseToWorkingDir(metadata) {
+  if (metadata) {
+    // TODO: copy license, and adjust the metadata
+  }
+}
+
+/**
+ * Create UDA.zip or EDA.png along with nft.json
+ *
+ * @param {string[]} workingArtworkAbsolutePaths
+ * @param {object} metadata
+ */
+export function tokenize(workingArtworkAbsolutePaths, metadata) {
+  workingArtworkAbsolutePaths.forEach((workingArtworkAbsolutePath) => {
+    _validateCorrectnessAndGenerateInfoPage(metadata)
+    // TODO: generate token nft.json
+    // TODO: generate UDA.zip or EDA.png
+  })
+}
+
+/**
+ * @param {object} metadata
+ * @private
+ */
+function _validateCorrectnessAndGenerateInfoPage(metadata) {
+  if (metadata) {
+    // TODO: validate metadata and generate info page
+  }
 }

@@ -18,22 +18,27 @@ Software = ""
 ["landscape.jpg"]
 # XMP-dc:Title and exif:ImageDescription
 title = "Title of the landscape photo"
+# If relative path is given, we'll try to generate it into landscape/certificate.pdf
+certificate="certificate.pdf"
 
 # We can dictate what format will the preview be generated, and what metadata it should have (overriding form the artwork)
 ["landscape/preview.webp"]
 title = "Preview for the landscape photo"
-
 
 # We can also refer to the working folder relative to this .toml file
 ["../example-project/portrait"]
 title = "Name of the portrait photo"
 # Though we set the XMP-dc:Title as to the same as exif:ImageDescription, we can still overwrite it
 "Exif:ImageDescription" = "Short description of the portrait photo"
+# It's the long notation of the path, equivalent to specifying "certificate.pdf" only
+certificate="portrait/certificate.pdf"
 
 # When the artwork doesn't have special characters in the name, we can even ommit the quotes,
 # in this case it will pick-up the file ./square/artwork.jpg
 [square]
 title = "Name of the portrait photo"
+# This path is outside of the working folder context, so it will not be taken into generation, but will be kept as is
+certificate={"../square-certificate.pdf" = {author = 'Name Surname'}}
 
 # As there's no file in the current dir, this table will be kept as is
 [notanartwork]
