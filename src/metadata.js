@@ -103,6 +103,10 @@ export function prepareMetadata(tomlFileAbsolutePaths) {
     return __METADATA_CACHE[cachekey]
   }
   const result = {}
+
+  //
+  // Merge all the TOML files into a single JSON object and normalize the toml headers as they should represent artworks
+  //
   tomlFileAbsolutePaths.forEach((tomlFileAbsolutePath) => {
     const tomlFile = fs.readFileSync(tomlFileAbsolutePath, 'utf8')
     const tomlJson = TOML.parse(tomlFile)
@@ -124,107 +128,9 @@ export function prepareMetadata(tomlFileAbsolutePaths) {
     }
   })
 
-  _normalizeFields(result)
+  _normalizeFieldNames(result)
 
-  // Adjust the originally referenced certificate
-  artworkURIs(result).forEach((uri) => {
-    let certificatePath = result[uri]['XMP-xmpRights:Certificate']
-    const certificatePathIsInlineTable = (typeof certificatePath === 'object' &&
-        certificatePath !== null &&
-        !Array.isArray(certificatePath))
-    if (certificatePathIsInlineTable) {
-      certificatePath = Object.keys(certificatePath)[0]
-    }
-
-    if (certificatePath && path.extname(certificatePath).toLowerCase() === '.pdf') {
-      if (!certificatePath.startsWith('file://')) {
-        if (path.isAbsolute(certificatePath)) {
-          certificatePath = `file://${certificatePath}`
-        } else {
-          // Relative paths are relative to the artwork file
-          const originalArtworkNameWithoutExt = path.basename(uri, path.extname(uri))
-          const absoluteDir = path.dirname(uri).replace('file://', '')
-
-          if (!certificatePath.startsWith('.')) {
-            certificatePath = `./${certificatePath}`
-          }
-
-          if (!certificatePath.endsWith(`${originalArtworkNameWithoutExt}/${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`)) {
-            certificatePath = certificatePath.replace(
-                `/${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`,
-                `/${originalArtworkNameWithoutExt}/${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`
-            )
-          }
-
-          // Now resolve the relative path to the absolute path
-          certificatePath = path.resolve(absoluteDir + path.sep + certificatePath)
-        }
-      } else {
-        // All good, it's already globally written with file://
-      }
-    }
-
-    if (certificatePathIsInlineTable) {
-      const inlineTable = Object.values(result[uri]['XMP-xmpRights:Certificate'])[0]
-      delete result[uri]['XMP-xmpRights:Certificate'][
-          Object.keys(result[uri]['XMP-xmpRights:Certificate'])[0]
-      ]
-      result[uri]['XMP-xmpRights:Certificate'][`file://${certificatePath}`] = inlineTable
-    } else {
-      result[uri]['XMP-xmpRights:Certificate'] = `file://${certificatePath}`
-    }
-  })
-
-  Object.keys(result).filter((key) => {
-    return !key.startsWith('file://') && key.endsWith(`${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`)
-  }).forEach((certificatePath) => {
-    if (path.isAbsolute(certificatePath)) {
-      result[`file://${certificatePath}`] = result[certificatePath]
-      delete result[certificatePath]
-    } else {
-      // Relative paths are relative to the artwork file
-      const artworkNameWithoutExt = path.basename(path.dirname(certificatePath))
-      if (artworkNameWithoutExt.endsWith('.') && artworkNameWithoutExt.startsWith('.')) {
-        throw Error(`Certificate context (artwork) not provided. It should be <artwork>/certificate.pdf`)
-      } else {
-        let adjustedCertificatePath = certificatePath.replace(
-            `${artworkNameWithoutExt}/${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`,
-            `${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`
-        )
-
-        if (!adjustedCertificatePath.startsWith('.')) {
-          adjustedCertificatePath = `./${adjustedCertificatePath}`
-        }
-
-        if (!adjustedCertificatePath.endsWith(`/${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`)) {
-          artworkURIs(result).forEach((uri) => {
-            if (path.basename(uri, path.extname(uri)) === artworkNameWithoutExt) {
-              let specificCertificateUri = result[uri]['XMP-xmpRights:Certificate']
-              const specificCertificateUriIsInlineTable = (typeof specificCertificateUri === 'object' &&
-                  specificCertificateUri !== null &&
-                  !Array.isArray(specificCertificateUri))
-              if (specificCertificateUriIsInlineTable) {
-                specificCertificateUri = Object.keys(specificCertificateUri)[0]
-              }
-              if (path.basename(specificCertificateUri) === path.basename(adjustedCertificatePath)) {
-                result[specificCertificateUri] = result[certificatePath]
-                delete result[certificatePath]
-              }
-            }
-          })
-        } else {
-          artworkURIs(result).forEach((uri) => {
-            if (path.basename(uri, path.extname(uri)) === artworkNameWithoutExt) {
-              adjustedCertificatePath = path.dirname(uri).replace('file://', '') +
-                  path.sep + artworkNameWithoutExt + path.sep + adjustedCertificatePath
-              result[`file://${path.resolve(adjustedCertificatePath)}`] = result[certificatePath]
-              delete result[certificatePath]
-            }
-          })
-        }
-      }
-    }
-  })
+  _prepareMetadataOfCertificates(result)
 
   __METADATA_CACHE[cachekey] = result
 
@@ -392,9 +298,10 @@ function _successfulCatch(err) {
  * @param {Object} metadata
  * @private
  */
-function _normalizeFields(metadata) {
+function _normalizeFieldNames(metadata) {
   // console.log(metadata)
   // TODO: recognize the keys in metadata and convert them into tags
+  // TODO: recognize the vocabulary inside certificate tags as well!!!
 
   // Normalize the "certificate"
   Object.keys(metadata).filter((key) => {
@@ -413,4 +320,166 @@ function _normalizeFields(metadata) {
   })
 
   // TODO: resolve the variables
+}
+
+/**
+ * Adjusts the metadata related certificates
+ * @param {object} metadata
+ * @private
+ */
+function _prepareMetadataOfCertificates(metadata) {
+  // collect referenced certificate, turn them into URIs beforehand
+  const referencedCertificateUris = artworkURIs(metadata).map((uri) => {
+    let certificatePath = metadata[uri]['XMP-xmpRights:Certificate']
+    const certificatePathIsInlineTable = (typeof certificatePath === 'object' &&
+        certificatePath !== null &&
+        !Array.isArray(certificatePath))
+    if (certificatePathIsInlineTable) {
+      certificatePath = Object.keys(certificatePath)[0]
+    }
+
+    if (certificatePath && path.extname(certificatePath).toLowerCase() === '.pdf') {
+      if (!certificatePath.startsWith('file://')) {
+        if (path.isAbsolute(certificatePath)) {
+          certificatePath = `file://${certificatePath}`
+        } else {
+          // Relative paths are relative to the artwork file
+          const originalArtworkNameWithoutExt = path.basename(uri, path.extname(uri))
+          const absoluteDir = path.dirname(uri).replace('file://', '')
+
+          if (!certificatePath.startsWith('.')) {
+            certificatePath = `./${certificatePath}`
+          }
+
+          if (!certificatePath.endsWith(`${originalArtworkNameWithoutExt}/${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`)) {
+            certificatePath = certificatePath.replace(
+                `/${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`,
+                `/${originalArtworkNameWithoutExt}/${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`
+            )
+          }
+
+          // Now resolve the relative path to the absolute path
+          certificatePath = path.resolve(absoluteDir + path.sep + certificatePath)
+        }
+      } else {
+        // All good, it's already globally written with file://
+      }
+    }
+
+    if (certificatePathIsInlineTable) {
+      const inlineTable = Object.values(metadata[uri]['XMP-xmpRights:Certificate'])[0]
+      delete metadata[uri]['XMP-xmpRights:Certificate'][
+          Object.keys(metadata[uri]['XMP-xmpRights:Certificate'])[0]
+      ]
+      metadata[uri]['XMP-xmpRights:Certificate'][`file://${certificatePath}`] = inlineTable
+    } else {
+      metadata[uri]['XMP-xmpRights:Certificate'] = `file://${certificatePath}`
+    }
+
+    return metadata[uri]['XMP-xmpRights:Certificate']
+  }).filter((mappedCertificateUri) => !!mappedCertificateUri)
+
+  // Adjust the toml table headers that represent certificates
+  Object.keys(metadata).filter((key) => {
+    return !key.startsWith('file://') && key.endsWith(`.pdf`)
+  }).forEach((certificatePath) => {
+    if (path.isAbsolute(certificatePath)) {
+      if (referencedCertificateUris.includes(`file://${certificatePath}`)) {
+        metadata[`file://${certificatePath}`] = metadata[certificatePath]
+        delete metadata[certificatePath]
+      } else {
+        console.warn(`Certificate ${certificatePath} is not referenced by any artwork.`)
+      }
+    } else {
+      // Relative paths are relative to the artwork file
+      const artworkNameWithoutExt = path.basename(path.dirname(certificatePath))
+      if (artworkNameWithoutExt.endsWith('.') && artworkNameWithoutExt.startsWith('.')) {
+        console.error(`Certificate context not provided in ${certificatePath}. It should be <artwork>/<certificate>.pdf`)
+      } else {
+        let adjustedCertificatePath = certificatePath.replace(
+            `${artworkNameWithoutExt}/${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`,
+            `${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`
+        )
+
+        if (!adjustedCertificatePath.startsWith('.')) {
+          adjustedCertificatePath = `./${adjustedCertificatePath}`
+        }
+
+        if (!adjustedCertificatePath.endsWith(`/${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`)) {
+          // We have some custom certificate file name, so we will be trying to copy it over later one
+          artworkURIs(metadata).forEach((uri) => {
+            if (path.basename(uri, path.extname(uri)) === artworkNameWithoutExt) {
+              let specificCertificateUri = metadata[uri]['XMP-xmpRights:Certificate']
+              const specificCertificateUriIsInlineTable = (typeof specificCertificateUri === 'object' &&
+                  specificCertificateUri !== null &&
+                  !Array.isArray(specificCertificateUri))
+              if (specificCertificateUriIsInlineTable) {
+                specificCertificateUri = Object.keys(specificCertificateUri)[0]
+              }
+              if (path.basename(specificCertificateUri) === path.basename(adjustedCertificatePath)) {
+                metadata[specificCertificateUri] = metadata[certificatePath]
+                delete metadata[certificatePath]
+              }
+            }
+          })
+        } else {
+          artworkURIs(metadata).forEach((uri) => {
+            if (path.basename(uri, path.extname(uri)) === artworkNameWithoutExt) {
+              adjustedCertificatePath = path.dirname(uri).replace('file://', '') +
+                  path.sep + artworkNameWithoutExt + path.sep + adjustedCertificatePath
+              if (referencedCertificateUris.includes(`file://${path.resolve(adjustedCertificatePath)}`)) {
+                metadata[`file://${path.resolve(adjustedCertificatePath)}`] = metadata[certificatePath]
+                delete metadata[certificatePath]
+              } else {
+                console.warn(`Certificate ${adjustedCertificatePath} is not referenced by any artwork.`)
+              }
+            }
+          })
+        }
+      }
+    }
+  })
+
+  // Now we have the same URI in XMP-xmpRights:Certificate and in the toml table header
+  // It may happen that the fields for certificate are passed inline or inside the separate table, we have to align for that
+
+  // First make sure that for every referenced certificate we have a toml table
+  referencedCertificateUris.forEach((certificateUri) => {
+    const certificateUriIsInlineTable = (typeof certificateUri === 'object' &&
+        certificateUri !== null &&
+        !Array.isArray(certificateUri))
+
+    if (certificateUriIsInlineTable) {
+      certificateUri = Object.keys(certificateUri)[0]
+    }
+
+    if (!Object.keys(metadata).includes(certificateUri)) {
+      metadata[certificateUri] = {}
+    }
+  })
+
+  // Everything that's specified inline will be overwritten by the specific toml table
+  artworkURIs(metadata).forEach((uri) => {
+    let certificateUri = metadata[uri]['XMP-xmpRights:Certificate']
+    if (certificateUri) {
+      const certificateUriIsInlineTable = (typeof certificateUri === 'object' &&
+          !Array.isArray(certificateUri))
+      if (!certificateUriIsInlineTable) {
+        metadata[uri]['XMP-xmpRights:Certificate'] = {}
+        metadata[uri]['XMP-xmpRights:Certificate'][certificateUri] = {...metadata[certificateUri]}
+      } else {
+        certificateUri = Object.keys(certificateUri)[0]
+        // Merge both ways
+        metadata[uri]['XMP-xmpRights:Certificate'][certificateUri] = {
+          ...metadata[uri]['XMP-xmpRights:Certificate'][certificateUri],
+          ...metadata[certificateUri]
+        }
+
+        metadata[certificateUri] = {
+          ...metadata[uri]['XMP-xmpRights:Certificate'][certificateUri],
+          ...metadata[certificateUri]
+        }
+      }
+    }
+  })
 }

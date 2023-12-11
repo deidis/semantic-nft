@@ -1,7 +1,10 @@
 # Generate the certificate into the working folder.
 ['landscape/certificate.pdf']
 author='Author Name'
+# You can specify variables to use during rendering
+pdfVar1='Variable 1'
 
-# If the specified certificate is not <working folder>/certificate.pdf, then we'll just copy it over (if it exists).
+# If the specified certificate is not called "certificate.pdf", then we'll just copy it over (if it exists).
+# Note that the context (the the artwork folder) is necessary here.
 ['square/square-certificate.pdf']
-author='Overwrite Inline'
+Author='Overwrite Inline'

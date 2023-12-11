@@ -87,8 +87,9 @@ certificate='certificate.pdf'
 
 For more examples, please refer to the [example project](./nft-workspace/example-project). Here's the list of fields that are supported:
 
-- author
-- title
+- author (PDF info tag to represent the author of the PDF, defaults to the artist of the artwork)
+- title (PDF info tag to represent the title of the PDF, defaults to "Certificate of authenticity")
+- subject (PDF info tag to represent the description of the contents of the PDF, defaults to empty string)
 - TODO: add all
 
 If you already have a certificate PDF and simply want to use it, you can do it like this:
@@ -101,7 +102,7 @@ certificate='/folder/where/certificate/is/artwork-certificate.pdf'
 ["artwork/certificate.pdf"]
 # or
 # ["artwork/artwork-certificate.pdf"]
-```
+``` 
 
 You can also specify metadata fields for the certificate that you already have, but be aware that if the certificate is digitally signed already, it will not be touched, as the signature will be broken.
 

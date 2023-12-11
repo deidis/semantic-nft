@@ -38,7 +38,7 @@ certificate="portrait/certificate.pdf"
 [square]
 title = "Name of the portrait photo"
 # This path is outside of the working folder context, so it will not be taken into generation, but will be kept as is
-certificate={"../square-certificate.pdf" = {author = 'Name Surname'}}
+certificate={"../square-certificate.pdf" = {Author = 'Name Surname', creator = 'Creator Name'}}
 
 # As there's no file in the current dir, this table will be kept as is
 [notanartwork]
