@@ -87,7 +87,7 @@ certificate='certificate.pdf'
 
 For more examples, please refer to the [example project](./nft-workspace/example-project). Here's the list of fields that are supported:
 
-- author (PDF info tag to represent the author of the PDF, defaults to the artist of the artwork)
+- author (PDF info tag to represent the author of the PDF, defaults to the artist (_XMP-dc:Creator_ field) of the artwork)
 - title (PDF info tag to represent the title of the PDF, defaults to "Certificate of authenticity")
 - subject (PDF info tag to represent the description of the contents of the PDF, defaults to empty string)
 - TODO: add all
@@ -122,6 +122,14 @@ author='John Doe'
 # This must be on a single line!!! Maybe better use the first variant? 
 certificate={'/folder/where/certificate/is/artwork-certificate.pdf' = {author='John Doe'}}
 ```
+
+You may also define the certificate only in one place as long as the reference can be resolved, it will be used.
+
+**IMPORTANT:** if you omit the certificate field, the system will attempt to generate it by deriving sensible defaults for variables. To switch the certificate off, mark the field as empty, e.g. `certificate = ''` or `certificate = false`.
+
+### Licensing
+
+This is an important though very neglected topic in the NFT area. We have a bunch of licenses inside the [licensing](./licensing) folder, which can be used for inclusion into the NFT.
 
 ### Digital artefact creation
 
@@ -162,6 +170,8 @@ Example photos we use [picsum.photos](https://picsum.photos) which are taken fro
 - landscape [download](https://picsum.photos/id/867/4288/2848) [info](https://picsum.photos/id/867/info)
 - portrait [download](https://picsum.photos/id/997/2528/3735) [info](https://picsum.photos/id/997/info)
 - square [download](https://picsum.photos/id/670/1367) [info](https://picsum.photos/id/670/info)
+
+Creative Commons licenses are downloaded from [the official website](https://creativecommons.org) without any changes into [licensing](./licensing) folder.
 
 
 # More on the topic

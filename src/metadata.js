@@ -373,8 +373,11 @@ function _prepareMetadataOfCertificates(metadata) {
       ]
       metadata[uri]['XMP-xmpRights:Certificate'][`file://${certificatePath}`] = inlineTable
     } else {
-      metadata[uri]['XMP-xmpRights:Certificate'] = `file://${certificatePath}`
+      if (certificatePath) {
+        metadata[uri]['XMP-xmpRights:Certificate'] = `file://${certificatePath}`
+      }
     }
+
 
     return metadata[uri]['XMP-xmpRights:Certificate']
   }).filter((mappedCertificateUri) => !!mappedCertificateUri)
@@ -388,7 +391,20 @@ function _prepareMetadataOfCertificates(metadata) {
         metadata[`file://${certificatePath}`] = metadata[certificatePath]
         delete metadata[certificatePath]
       } else {
-        console.warn(`Certificate ${certificatePath} is not referenced by any artwork.`)
+        artworkURIs(metadata).filter((uri) => {
+          return uri.startsWith(`file://${path.dirname(certificatePath)}`)
+        }).forEach((uri) => {
+          if (typeof metadata[uri]['XMP-xmpRights:Certificate'] !== 'undefined') {
+            // Force it to be empty
+            delete metadata[certificatePath]
+          } else {
+            // Fix the reference
+            metadata[uri]['XMP-xmpRights:Certificate'] = `file://${certificatePath}`
+            metadata[`file://${certificatePath}`] = metadata[certificatePath]
+            referencedCertificateUris.push(`file://${certificatePath}`)
+            delete metadata[certificatePath]
+          }
+        })
       }
     } else {
       // Relative paths are relative to the artwork file
@@ -423,15 +439,26 @@ function _prepareMetadataOfCertificates(metadata) {
             }
           })
         } else {
-          artworkURIs(metadata).forEach((uri) => {
-            if (path.basename(uri, path.extname(uri)) === artworkNameWithoutExt) {
-              adjustedCertificatePath = path.dirname(uri).replace('file://', '') +
-                  path.sep + artworkNameWithoutExt + path.sep + adjustedCertificatePath
-              if (referencedCertificateUris.includes(`file://${path.resolve(adjustedCertificatePath)}`)) {
-                metadata[`file://${path.resolve(adjustedCertificatePath)}`] = metadata[certificatePath]
+          artworkURIs(metadata).forEach((artworkUri) => {
+            if (path.basename(artworkUri, path.extname(artworkUri)) === artworkNameWithoutExt) {
+              const certificateUri = 'file://' + path.resolve(path.dirname(artworkUri).replace('file://', '') +
+                  path.sep + artworkNameWithoutExt + path.sep + adjustedCertificatePath)
+              if (referencedCertificateUris.includes(certificateUri)) {
+                metadata[certificateUri] = metadata[certificatePath]
                 delete metadata[certificatePath]
               } else {
-                console.warn(`Certificate ${adjustedCertificatePath} is not referenced by any artwork.`)
+                if (typeof metadata[artworkUri]['XMP-xmpRights:Certificate'] !== 'undefined') {
+                  // Force it to be empty
+                  console.log('FORCE', certificateUri, metadata[artworkUri]['XMP-xmpRights:Certificate'])
+                  delete metadata[certificatePath]
+                  delete metadata[artworkUri]['XMP-xmpRights:Certificate']
+                } else {
+                  // Fix the reference
+                  metadata[artworkUri]['XMP-xmpRights:Certificate'] = certificateUri
+                  metadata[certificateUri] = metadata[certificatePath]
+                  referencedCertificateUris.push(certificateUri)
+                  delete metadata[certificatePath]
+                }
               }
             }
           })
@@ -443,7 +470,7 @@ function _prepareMetadataOfCertificates(metadata) {
   // Now we have the same URI in XMP-xmpRights:Certificate and in the toml table header
   // It may happen that the fields for certificate are passed inline or inside the separate table, we have to align for that
 
-  // First make sure that for every referenced certificate we have a toml table
+  // First make sure that for every referenced certificate has a toml table
   referencedCertificateUris.forEach((certificateUri) => {
     const certificateUriIsInlineTable = (typeof certificateUri === 'object' &&
         certificateUri !== null &&
@@ -460,24 +487,41 @@ function _prepareMetadataOfCertificates(metadata) {
 
   // Everything that's specified inline will be overwritten by the specific toml table
   artworkURIs(metadata).forEach((uri) => {
-    let certificateUri = metadata[uri]['XMP-xmpRights:Certificate']
-    if (certificateUri) {
-      const certificateUriIsInlineTable = (typeof certificateUri === 'object' &&
-          !Array.isArray(certificateUri))
+    let referencedCertificateUri = metadata[uri]['XMP-xmpRights:Certificate']
+    if (referencedCertificateUri) {
+      const certificateUriIsInlineTable = (typeof referencedCertificateUri === 'object' &&
+          !Array.isArray(referencedCertificateUri))
       if (!certificateUriIsInlineTable) {
         metadata[uri]['XMP-xmpRights:Certificate'] = {}
-        metadata[uri]['XMP-xmpRights:Certificate'][certificateUri] = {...metadata[certificateUri]}
+        metadata[uri]['XMP-xmpRights:Certificate'][referencedCertificateUri] = {...metadata[referencedCertificateUri]}
       } else {
-        certificateUri = Object.keys(certificateUri)[0]
-        // Merge both ways
-        metadata[uri]['XMP-xmpRights:Certificate'][certificateUri] = {
-          ...metadata[uri]['XMP-xmpRights:Certificate'][certificateUri],
-          ...metadata[certificateUri]
-        }
+        if (typeof referencedCertificateUri === 'undefined') {
+          // We will still try to generate it with sensible defaults
+          const referencedCertificateUri = `${path.dirname(uri)}/${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`
+          if (metadata[referencedCertificateUri]) {
+            metadata[uri]['XMP-xmpRights:Certificate'] = metadata[referencedCertificateUri]
+          } else {
+            // Pretend it was prescribed in the toml file, but doesn't have any variables
+            metadata[uri]['XMP-xmpRights:Certificate'] = {}
+            metadata[uri]['XMP-xmpRights:Certificate'][referencedCertificateUri] = {}
+          }
+        } else {
+          if (!referencedCertificateUri) {
+            // Forced to be empty
+            delete metadata[`${path.dirname(uri)}/${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`]
+          } else {
+            referencedCertificateUri = Object.keys(referencedCertificateUri)[0]
+            // Merge both ways
+            metadata[uri]['XMP-xmpRights:Certificate'][referencedCertificateUri] = {
+              ...metadata[uri]['XMP-xmpRights:Certificate'][referencedCertificateUri],
+              ...metadata[referencedCertificateUri]
+            }
 
-        metadata[certificateUri] = {
-          ...metadata[uri]['XMP-xmpRights:Certificate'][certificateUri],
-          ...metadata[certificateUri]
+            metadata[referencedCertificateUri] = {
+              ...metadata[uri]['XMP-xmpRights:Certificate'][referencedCertificateUri],
+              ...metadata[referencedCertificateUri]
+            }
+          }
         }
       }
     }
