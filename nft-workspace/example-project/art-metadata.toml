@@ -14,7 +14,7 @@ Software = ""
 # Always prescribe a license!
 license='licensing/CC0.txt'
 # If the certificate isn't provicded for an artwork, don't generate the default one
-#certificate=''
+certificate=''
 
 # We can also refer to the file name relative to the this .toml file
 ["landscape.jpg"]
@@ -22,6 +22,7 @@ license='licensing/CC0.txt'
 title = "Title of the landscape photo"
 # If relative path is given, we'll try to generate it into landscape/certificate.pdf
 certificate="certificate.pdf"
+license='licensing/CC BY.txt'
 
 # We can dictate what format will the preview be generated, and what metadata it should have (overriding form the artwork)
 ["landscape/preview.webp"]

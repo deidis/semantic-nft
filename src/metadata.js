@@ -8,7 +8,6 @@ import {
   ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT,
 } from './artwork.js'
 import {CERTIFICATE_FILE_NAME_WITHOUT_EXT} from './certificate.js'
-import {type} from 'mocha/lib/utils.js'
 
 const __METADATA_CACHE = {}
 const __CACHE_KEY = (tomlFileAbsolutePaths) => {
@@ -245,7 +244,7 @@ export const artworkPaths = (metadata) => {
 }
 
 export const artworkURIs = (metadata) => {
-  const artworkURIs = Object.keys(metadata || _getMetadata()).filter((key) => {
+  return Object.keys(metadata || _getMetadata()).filter((key) => {
     return key.startsWith('file://')
   }).filter((uri, index, uris) => {
     // If the uri is a preview image of some artwork, then we don't want to include it
@@ -266,7 +265,6 @@ export const artworkURIs = (metadata) => {
     }
     return SUPPORTED_IMAGE_FILE_TYPES.includes(path.extname(uri).toLowerCase().replace('.', ''))
   })
-  return artworkURIs
 }
 
 export const artworkPreviewFileExtension = (artworkAbsolutePathOrUri, metadata) => {
@@ -354,6 +352,13 @@ function _prepareMetadataOfLicenses(metadata) {
       const absoluteFilePath = collectFiles(path.resolve(localLicense), 0, '*').pop()
       if (absoluteFilePath) {
         metadata[artworkURI]['XMP-xmpRights:WebStatement'] = `file://${absoluteFilePath}`
+      } else {
+        if (!URL.canParse(localLicense)) {
+          // Get rid of the invalid license
+          delete metadata[artworkURI]['XMP-xmpRights:WebStatement']
+        } else {
+          // Trust that it's a URL
+        }
       }
     }
   })
@@ -369,6 +374,17 @@ function _prepareMetadataOfLicenses(metadata) {
           metadata[artworkURI]['XMP-xmpRights:WebStatement'] = `file://${absoluteFilePath}`
         }
       })
+    } else {
+      if (!URL.canParse(globalLicense)) {
+        // Ignore the globally set license
+      } else {
+        // Trust that it's a URL
+        artworkURIs(metadata).forEach((artworkURI) => {
+          if (!metadata[artworkURI]['XMP-xmpRights:WebStatement']) {
+            metadata[artworkURI]['XMP-xmpRights:WebStatement'] = globalLicense
+          }
+        })
+      }
     }
   }
 
@@ -697,24 +713,4 @@ function _prepareMetadataOfCertificates(metadata) {
  */
 function _isObject(variable) {
   return typeof variable === 'object' && variable !== null && !Array.isArray(variable)
-}
-
-/**
- * Check if the variable is an object and has the given key
- * @param {*} variable
- * @param {string} key
- * @return {boolean}
- * @private
- */
-function _isObjectWithKey(variable, key) {
-  return _isObject(variable) && Object.keys(variable).includes(key)
-}
-
-/**
- * @param {*} variable
- * @return {boolean}
- * @private
- */
-function _isEmptyObject(variable) {
-  return _isObject(variable) && Object.keys(variable).length === 0
 }

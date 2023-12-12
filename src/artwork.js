@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import sharp from 'sharp'
-import {artworkPreviewFileExtension} from './metadata.js'
+import {artworkPreviewFileExtension, artworkURIs} from './metadata.js'
 
 export const ARTWORK_FILE_NAME_WITHOUT_EXT = 'artwork'
 export const ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT = 'preview'
@@ -29,8 +29,6 @@ export function prepareArtworks(originalArtworkAbsolutePaths, preparedMetadata) 
 
     // Point to working file
     result[originalArtworkAbsolutePath] = workingArtworkAbsolutePath
-
-    _copyLicenseToWorkingDir(preparedMetadata)
 
     // Fix metadata
     if (preparedMetadata) {
@@ -66,7 +64,10 @@ export function prepareArtworks(originalArtworkAbsolutePaths, preparedMetadata) 
     } else {
       await _createPreview(workingArtworkAbsolutePath)
     }
+
+    _copyLicenseToWorkingDir(preparedMetadata)
   })
+
 
   return result
 }
@@ -110,9 +111,24 @@ async function _createPreview(readyArtworkAbsolutePath, extensionHint = null) {
  * @private
  */
 function _copyLicenseToWorkingDir(metadata) {
-  if (metadata) {
-    // TODO: copy license, and adjust the metadata
-  }
+  artworkURIs(metadata).forEach((artworkURI) => {
+    const licenseUri = metadata[artworkURI]['XMP-xmpRights:WebStatement']
+    if (licenseUri && licenseUri.startsWith('file://')) {
+      const licenseAbsolutePath = licenseUri.replace('file://', '')
+      const licenseWorkingFilePath = `${path.dirname(artworkURI).replace('file://', '')}/${path.basename(licenseUri)}`
+      fs.copyFileSync(
+          licenseAbsolutePath,
+          licenseWorkingFilePath
+      )
+
+      // Update the metadata to point to the working file
+      metadata[artworkURI]['XMP-xmpRights:WebStatement'] = `file://${licenseWorkingFilePath}`
+    } else {
+      if (!licenseUri) {
+        throw Error(`License is not defined for ${artworkURI}`)
+      }
+    }
+  })
 }
 
 /**

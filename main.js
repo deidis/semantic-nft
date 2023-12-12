@@ -39,6 +39,7 @@ clean(Object.values(workingFiles))
       await ingest()
 
       console.log('Prepare certificates of authenticity...')
+      console.log(JSON.stringify(metadata, null, 2))
       await prepareCertificates(metadata)
     }).catch((err) => {
       console.error(err)
