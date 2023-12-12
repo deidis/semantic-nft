@@ -131,6 +131,34 @@ You may also define the certificate only in one place as long as the reference c
 
 This is an important though very neglected topic in the NFT area. We have a bunch of licenses inside the [licensing](./licensing) folder, which can be used for inclusion into the NFT.
 
+If you want to include the license file, you can use the field `license` in the `.toml` file. We have certain licenses available inside the [licensing](./licensing) folder. If you want to use one of your own, simply point to that file.
+
+Relative paths to licenses are resolved from the root of the project.
+
+Example:
+```toml
+# Global license for every artwork
+license='licensing/CC BY.txt'
+
+["artwork.png"]
+# Specific license for this artwork
+license='../licensing/CC0.txt'
+
+["artwork2.png"]
+# A reference to the license 
+license='https://creativecommons.org/licenses/by/4.0/legalcode'
+# ... it is equivalent to
+'XMP-xmpRights:WebStatement'='https://creativecommons.org/licenses/by/4.0/legalcode'
+```
+
+Besides the license one normally provides a short copyright information. This should go to either or all:
+
+- XMP-dc:rights
+- XMP-xmpRights:UsageTerms
+- Exif:Copyright
+
+or simply `copyright`
+
 ### Digital artefact creation
 
 After we have an artwork and metadata (`.toml` files) ready, we need to prepare for the minting:
