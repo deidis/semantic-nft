@@ -11,7 +11,10 @@ Software = ""
 # For example, we use XMP-xmpRights to specify various aspects of licensing:
 "XMP-xmpRights:Owner" = "Name Surname, Name2 Surname2"
 
+# Always prescribe a license!
 license='licensing/CC0.txt'
+# If the certificate isn't provicded for an artwork, don't generate the default one
+#certificate=''
 
 # We can also refer to the file name relative to the this .toml file
 ["landscape.jpg"]

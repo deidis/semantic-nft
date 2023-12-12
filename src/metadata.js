@@ -389,61 +389,21 @@ function _prepareMetadataOfCertificates(metadata) {
   if (globalCertificatePathIsInlineTable) {
     globalCertificatePath = Object.keys(globalCertificatePath)[0]
   }
+
   const forceEmptyIfNotPresentLocally = !globalCertificatePath && (typeof globalCertificatePath !== 'undefined')
 
-  // Check the global certificate, and use it for artworks where certificate wasn't provided
-  if (globalCertificatePath) {
-    artworkURIs(metadata).forEach((uri) => {
-      let localCertificatePath = metadata[uri]['XMP-xmpRights:Certificate']
-      const localCertificatePathIsInlineTable = (typeof localCertificatePath === 'object' &&
-          localCertificatePath !== null &&
-          !Array.isArray(localCertificatePath))
-      if (localCertificatePathIsInlineTable) {
-        localCertificatePath = Object.keys(localCertificatePath)[0]
-      }
-
-      if (localCertificatePath) {
-        // We have a local certificate, so we will use it, but merge the vars
-        if (!localCertificatePathIsInlineTable) {
-          metadata[uri]['XMP-xmpRights:Certificate'] = {}
-          metadata[uri]['XMP-xmpRights:Certificate'][localCertificatePath] = {}
-          if (globalCertificatePathIsInlineTable) {
-            metadata[uri]['XMP-xmpRights:Certificate'][localCertificatePath] = {
-              ...metadata['XMP-xmpRights:Certificate'][globalCertificatePath]
-            }
-          } else {
-            // Nothing to merge
-          }
-        } else {
-          if (globalCertificatePathIsInlineTable) {
-            metadata[uri]['XMP-xmpRights:Certificate'][localCertificatePath] = {
-              ...metadata['XMP-xmpRights:Certificate'][globalCertificatePath],
-              ...metadata[uri]['XMP-xmpRights:Certificate'][localCertificatePath]
-            }
-          } else {
-            // Nothing to merge
-          }
-        }
-      } else {
-        // We don't have a local certificate, so we will use the global one
-        if (typeof localCertificatePath === 'undefined') {
-          if (forceEmptyIfNotPresentLocally) {
-            // Force it to be empty
-            metadata[uri]['XMP-xmpRights:Certificate'] = ''
-          } else {
-            // Keep it undefined, we'll deal with it later
-          }
-        } else {
-          // Forced to be empty
-          metadata[uri]['XMP-xmpRights:Certificate'] = ''
-        }
-      }
-    })
-    // We can get rid of the global certificate, as we now have everything inside the artwork context
-    delete metadata['XMP-xmpRights:Certificate']
+  if (!forceEmptyIfNotPresentLocally && globalCertificatePath &&
+      !path.isAbsolute(globalCertificatePath) && !globalCertificatePath.startsWith('.')) {
+    console.warn(`Falling back to the default certificate path: ${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`)
+    globalCertificatePath = `./${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`
   }
 
+
+  // Check the global certificate, and use it for artworks where certificate wasn't provided
+
+
   // collect referenced certificate, turn them into URIs beforehand
+  const artworksNotReferencingCertificateUris = []
   const referencedCertificateUris = artworkURIs(metadata).map((uri) => {
     let certificatePath = metadata[uri]['XMP-xmpRights:Certificate']
     const certificatePathIsInlineTable = (typeof certificatePath === 'object' &&
@@ -493,6 +453,10 @@ function _prepareMetadataOfCertificates(metadata) {
       }
     }
 
+
+    if (typeof metadata[uri]['XMP-xmpRights:Certificate'] === 'undefined') {
+      artworksNotReferencingCertificateUris.push(uri)
+    }
 
     return metadata[uri]['XMP-xmpRights:Certificate']
   }).filter((mappedCertificateUri) => !!mappedCertificateUri)
@@ -627,7 +591,40 @@ function _prepareMetadataOfCertificates(metadata) {
   // Now we have the same URI in XMP-xmpRights:Certificate and in the toml table header
   // It may happen that the fields for certificate are passed inline or inside the separate table, we have to align for that
 
-  // First make sure that for every referenced certificate has a toml table
+  // Add default certificate if it's not defined elsewhere
+  artworksNotReferencingCertificateUris.forEach((uri) => {
+    if (!metadata[uri]['XMP-xmpRights:Certificate']) {
+      const artworkNameWithoutExt = path.basename(uri, path.extname(uri))
+      let defaultCertificateUri =
+          `${path.dirname(uri)}/${artworkNameWithoutExt}/${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`
+      if (globalCertificatePath) {
+        if (path.isAbsolute(globalCertificatePath)) {
+          defaultCertificateUri = `file://${globalCertificatePath}`
+        } else {
+          defaultCertificateUri = `file://${path.resolve(path.dirname(uri).replace('file://', '') +
+              path.sep +
+              artworkNameWithoutExt +
+              path.sep +
+              globalCertificatePath)}`
+        }
+        if (globalCertificatePathIsInlineTable) {
+          defaultCertificateUri = {
+            [defaultCertificateUri]:
+                metadata['XMP-xmpRights:Certificate'][Object.keys(metadata['XMP-xmpRights:Certificate'])[0]]
+          }
+        }
+      }
+
+      if (!forceEmptyIfNotPresentLocally) {
+        metadata[uri]['XMP-xmpRights:Certificate'] = defaultCertificateUri
+        referencedCertificateUris.push(metadata[uri]['XMP-xmpRights:Certificate'])
+      } else {
+        // Force it to be empty
+      }
+    }
+  })
+
+  // Make sure that for every referenced certificate has a toml table
   referencedCertificateUris.forEach((certificateUri) => {
     const certificateUriIsInlineTable = (typeof certificateUri === 'object' &&
         certificateUri !== null &&

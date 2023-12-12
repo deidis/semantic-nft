@@ -6,5 +6,5 @@ pdfVar1='Variable 1'
 
 # If the specified certificate is not called "certificate.pdf", then we'll just copy it over (if it exists).
 # Note that the context (the the artwork folder) is necessary here.
-['square/square-certificate.pdf']
+['../square/square-certificate.pdf']
 Author='Overwrite Inline'
