@@ -553,12 +553,39 @@ function _prepareMetadataOfCertificates(metadata) {
                 specificCertificateUri = Object.keys(specificCertificateUri)[0]
               }
               if (!specificCertificateUri && typeof specificCertificateUri === 'undefined') {
-                specificCertificateUri = 'file://' + path.resolve(`${adjustedCertificatePath}`)
+                specificCertificateUri = 'file://' +
+                    path.resolve(path.dirname(uri).replace('file://', '') +
+                        path.sep +
+                        // Artwork name is only for navigation, let's get rid of it
+                        adjustedCertificatePath.replace(`./${artworkNameWithoutExt}/`, './')
+                    )
                 if (path.basename(specificCertificateUri) === path.basename(adjustedCertificatePath)) {
-                  metadata[specificCertificateUri] = metadata[certificatePath]
+                  metadata[uri]['XMP-xmpRights:Certificate'] = {
+                    [specificCertificateUri]: metadata[certificatePath]
+                  }
                 }
+                referencedCertificateUris.push(specificCertificateUri)
               } else {
-                // Force it to be empty
+                if (specificCertificateUri) {
+                  // Artwork name is only for navigation, let's get rid of it
+                  const pieces = specificCertificateUri.split('/')
+                  if (pieces[pieces.length - 2] === artworkNameWithoutExt) {
+                    pieces.splice(-2, 1)
+                  }
+                  specificCertificateUri = pieces.join('/')
+                  if (specificCertificateUriIsInlineTable) {
+                    metadata[uri]['XMP-xmpRights:Certificate'] = {
+                      [specificCertificateUri]: {
+                        ...metadata[uri]['XMP-xmpRights:Certificate'][specificCertificateUri],
+                        ...metadata[certificatePath]
+                      }
+                    }
+                  } else {
+                    metadata[uri]['XMP-xmpRights:Certificate'] = specificCertificateUri
+                  }
+                } else {
+                  // Force it to be empty
+                }
               }
               delete metadata[certificatePath]
             }
