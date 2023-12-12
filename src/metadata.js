@@ -351,7 +351,7 @@ function _prepareMetadataOfLicenses(metadata) {
   artworkURIs(metadata).forEach((artworkURI) => {
     const localLicense = metadata[artworkURI]['XMP-xmpRights:WebStatement']
     if (localLicense) {
-      const absoluteFilePath = collectFiles(path.resolve(localLicense)).pop()
+      const absoluteFilePath = collectFiles(path.resolve(localLicense), 0, '*').pop()
       if (absoluteFilePath) {
         metadata[artworkURI]['XMP-xmpRights:WebStatement'] = `file://${absoluteFilePath}`
       }
@@ -361,7 +361,7 @@ function _prepareMetadataOfLicenses(metadata) {
 
   const globalLicense = metadata['XMP-xmpRights:WebStatement']
   if (globalLicense) {
-    const absoluteFilePath = collectFiles(path.resolve(globalLicense)).pop()
+    const absoluteFilePath = collectFiles(path.resolve(globalLicense), 0, '*').pop()
     if (absoluteFilePath) {
       metadata['XMP-xmpRights:WebStatement'] = `file://${absoluteFilePath}`
       artworkURIs(metadata).forEach((artworkURI) => {
@@ -552,11 +552,15 @@ function _prepareMetadataOfCertificates(metadata) {
               if (specificCertificateUriIsInlineTable) {
                 specificCertificateUri = Object.keys(specificCertificateUri)[0]
               }
-              if (specificCertificateUri &&
-                  path.basename(specificCertificateUri) === path.basename(adjustedCertificatePath)) {
-                metadata[specificCertificateUri] = metadata[certificatePath]
-                delete metadata[certificatePath]
+              if (!specificCertificateUri && typeof specificCertificateUri === 'undefined') {
+                specificCertificateUri = 'file://' + path.resolve(`${adjustedCertificatePath}`)
+                if (path.basename(specificCertificateUri) === path.basename(adjustedCertificatePath)) {
+                  metadata[specificCertificateUri] = metadata[certificatePath]
+                }
+              } else {
+                // Force it to be empty
               }
+              delete metadata[certificatePath]
             }
           })
         } else {

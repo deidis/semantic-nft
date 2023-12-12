@@ -33,8 +33,10 @@ export default class BasicCertificateOfAuthenticity {
       this.#certificateUri = Object.keys(certificateMeta)[0]
     } else {
       this.#certificateUri = certificateMeta
-      this.#metadata[artworkWorkingFileUri]['XMP-xmpRights:Certificate'] = {
-        [certificateMeta]: {},
+      if (this.#certificateUri) {
+        this.#metadata[artworkWorkingFileUri]['XMP-xmpRights:Certificate'] = {
+          [this.#certificateUri]: {},
+        }
       }
     }
 
@@ -56,12 +58,20 @@ export default class BasicCertificateOfAuthenticity {
 
       if (this.#certificateUri === `file://${workingCertificateAbsolutePath}`) {
         const writeStream = fs.createWriteStream(workingCertificateAbsolutePath)
-        writeStream.addListener('finish', async () => {
-          await this._applyInfoTags()
+        const promiseFromStream = new Promise((resolve, reject) => {
+          writeStream.on('finish', () => {
+            resolve()
+          })
+          writeStream.on('error', (err) => {
+            reject(err)
+          })
         })
         this.#pdf.pipe(writeStream)
         await this.render()
         this.#pdf.end()
+        return promiseFromStream.then(() => {
+          return this.#certificateUri.replace('file://', '')
+        })
       } else {
         if (fs.existsSync(this.#certificateUri.replace('file://', ''))) {
           // The file is supposed to exist, so we copy it over and then proceed
