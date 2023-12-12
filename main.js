@@ -40,7 +40,6 @@ clean(Object.values(workingFiles))
 
       console.log('Prepare certificates of authenticity...')
       await prepareCertificates(metadata)
-      // console.log(JSON.stringify(metadata, null, 2))
     }).catch((err) => {
       console.error(err)
     }).finally(() => {

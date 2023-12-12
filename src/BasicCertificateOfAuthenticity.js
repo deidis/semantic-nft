@@ -33,6 +33,9 @@ export default class BasicCertificateOfAuthenticity {
       this.#certificateUri = Object.keys(certificateMeta)[0]
     } else {
       this.#certificateUri = certificateMeta
+      this.#metadata[artworkWorkingFileUri]['XMP-xmpRights:Certificate'] = {
+        [certificateMeta]: {},
+      }
     }
 
     this.#pdf = new PDFDocument({font: 'Helvetica'})
@@ -70,21 +73,24 @@ export default class BasicCertificateOfAuthenticity {
               this.#metadata[this.#artworkUri]['XMP-xmpRights:Certificate'][this.#certificateUri]
           delete this.#metadata[this.#artworkUri]['XMP-xmpRights:Certificate'][this.#certificateUri]
 
-          this.#metadata[newCertificateUri] = this.#metadata[this.#certificateUri]
-          delete this.#metadata[this.#certificateUri]
-
           this.#certificateUri = newCertificateUri
           await this._applyInfoTags()
         } else {
           console.warn(`Cannot copy the certificate ${this.#certificateUri.replace('file://', '')}. Not found.`)
           delete this.#metadata[this.#artworkUri]['XMP-xmpRights:Certificate']
-          delete this.#metadata[this.#certificateUri]
         }
       }
 
       return this.#certificateUri.replace('file://', '')
     }
     return null
+  }
+
+  /**
+   * @return {object}
+   */
+  get certificate() {
+    return this.#metadata[this.#artworkUri]['XMP-xmpRights:Certificate'][this.#certificateUri]
   }
 
   /**
@@ -97,9 +103,7 @@ export default class BasicCertificateOfAuthenticity {
     if (fileExists) {
       // Check if certificate is actually signed,
       // in this case don't overwrite the metadata or the signature would become invalid
-      if (isSigned(certificateAbsolutePath)) {
-        return
-      } else {
+      if (!isSigned(certificateAbsolutePath)) {
         const infoTags = this.pdfInfoTagsFromMetadata()
 
         if (Object.keys(infoTags).length > 0) {
@@ -138,12 +142,12 @@ export default class BasicCertificateOfAuthenticity {
       'Author': this.#metadata['XMP-dc:creator'] ? this.#metadata['XMP-dc:Creator'] : '',
     }
 
-    Object.keys(this.#metadata[this.#certificateUri]).filter((key) => {
+    Object.keys(this.certificate).filter((key) => {
       // Take only supported fields
       const field = key.toLowerCase()
       return field.startsWith('xmp-pdf') || ['title', 'author', 'subject'].includes(field)
     }).forEach((key) => {
-      result[key] = this.#metadata[this.#certificateUri][key].toString()
+      result[key] = this.certificate[key].toString()
     })
 
     return result
@@ -156,10 +160,10 @@ export default class BasicCertificateOfAuthenticity {
   pdfVariablesFromMetadata() {
     const infoTags = this.pdfInfoTagsFromMetadata()
     const result = {}
-    Object.keys(this.#metadata[this.#certificateUri]).filter((key) => {
+    Object.keys(this.certificate).filter((key) => {
       return !Object.keys(infoTags).includes(key.toLowerCase())
     }).forEach((key) => {
-      result[key] = this.#metadata[this.#certificateUri][key].toString()
+      result[key] = this.certificate[key].toString()
     })
 
     return result

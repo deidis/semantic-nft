@@ -14,10 +14,10 @@ export const SUPPORTED_IMAGE_FILE_TYPES = [
 ]
 
 /**
- * @param {string} filePath - absolute path to file or directory
+ * @param {string} filePath - absolute path to a file or directory
  * @param {number} depth - how deep to search for files in directories
- * @param {string[]} fileTypesByExtensionName - array of file extensions to search for
- * @return {string[]} - array of absolute paths to files
+ * @param {string[]} fileTypesByExtensionName - array of file extensions to search for, will be ignored if filePath is a file
+ * @return {string[]} - array of paths to file(s), they are not ensured to be absolute, unless the filePath is absolute
  */
 export function collectFiles(filePath, depth = 0, fileTypesByExtensionName = SUPPORTED_IMAGE_FILE_TYPES) {
   const result = []
@@ -32,6 +32,7 @@ export function collectFiles(filePath, depth = 0, fileTypesByExtensionName = SUP
         }
       } else if (stats.isFile()) {
         result.push(filePath)
+        return result
       }
     }
   } catch (err) {

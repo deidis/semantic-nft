@@ -11,8 +11,7 @@ Software = ""
 # For example, we use XMP-xmpRights to specify various aspects of licensing:
 "XMP-xmpRights:Owner" = "Name Surname, Name2 Surname2"
 
-# Be careful with adding tags, as during minting some of the tags might be overwritten.
-# For example, XMP-xmpRights:Certificate would be overwritten by the minting process if you provide the certificate file there (feature of Silvermind)
+license='licensing/CC0.txt'
 
 # We can also refer to the file name relative to the this .toml file
 ["landscape.jpg"]

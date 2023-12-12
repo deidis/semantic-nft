@@ -125,7 +125,7 @@ certificate={'/folder/where/certificate/is/artwork-certificate.pdf' = {author='J
 
 You may also define the certificate only in one place as long as the reference can be resolved, it will be used.
 
-**IMPORTANT:** if you omit the certificate field, the system will attempt to generate it by deriving sensible defaults for variables. To switch the certificate off, mark the field as empty, e.g. `certificate = ''` or `certificate = false`.
+**IMPORTANT:** if you omit the certificate field, the system will attempt to generate it by deriving sensible defaults for variables. To switch the certificate off, mark the field as empty `certificate = ''`.
 
 ### Licensing
 
@@ -158,6 +158,8 @@ Besides the license one normally provides a short copyright information. This sh
 - Exif:Copyright
 
 or simply `copyright`
+
+**IMPORTANT:** providing a license is mandatory, and doesn't fall back to any defaults. If you don't care about the rights, simply point to the [licensing/CC0.txt](./licensing/CC0.txt) license, which is the most permissive public domain license. 
 
 ### Digital artefact creation
 

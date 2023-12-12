@@ -8,6 +8,7 @@ import {
   ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT,
 } from './artwork.js'
 import {CERTIFICATE_FILE_NAME_WITHOUT_EXT} from './certificate.js'
+import {type} from 'mocha/lib/utils.js'
 
 const __METADATA_CACHE = {}
 const __CACHE_KEY = (tomlFileAbsolutePaths) => {
@@ -131,6 +132,7 @@ export function prepareMetadata(tomlFileAbsolutePaths) {
   _normalizeFieldNames(result)
 
   _prepareMetadataOfCertificates(result)
+  _prepareMetadataOfLicenses(result)
 
   __METADATA_CACHE[cachekey] = result
 
@@ -243,7 +245,7 @@ export const artworkPaths = (metadata) => {
 }
 
 export const artworkURIs = (metadata) => {
-  return Object.keys(metadata || _getMetadata()).filter((key) => {
+  const artworkURIs = Object.keys(metadata || _getMetadata()).filter((key) => {
     return key.startsWith('file://')
   }).filter((uri, index, uris) => {
     // If the uri is a preview image of some artwork, then we don't want to include it
@@ -252,8 +254,9 @@ export const artworkURIs = (metadata) => {
       // check if it's a preview of already included artwork
       return uris.filter((uriToCheck) => {
         if (path.basename(uriToCheck, path.extname(uriToCheck)) === ARTWORK_FILE_NAME_WITHOUT_EXT) {
-          if (path.dirname(path.basename(uriToCheck)) === path.dirname(path.basename(previewUri))) {
-            return previewUri.startsWith(`${path.dirname(uriToCheck)}}`)
+          // We have the artwork in working file uri
+          if (path.basename(path.dirname(uriToCheck)) === path.basename(path.dirname(previewUri))) {
+            return previewUri.startsWith(path.dirname(uriToCheck))
           }
         } else {
           return previewUri.startsWith(`${path.dirname(uriToCheck)}`+
@@ -263,6 +266,7 @@ export const artworkURIs = (metadata) => {
     }
     return SUPPORTED_IMAGE_FILE_TYPES.includes(path.extname(uri).toLowerCase().replace('.', ''))
   })
+  return artworkURIs
 }
 
 export const artworkPreviewFileExtension = (artworkAbsolutePathOrUri, metadata) => {
@@ -319,15 +323,126 @@ function _normalizeFieldNames(metadata) {
     })
   })
 
+  // Normalize the "license"
+  Object.keys(metadata).filter((key) => {
+    return key.toLowerCase() === 'license' || key.toLowerCase() === 'xmp-xmprights:webstatement'
+  }).forEach((key) => {
+    metadata['XMP-xmpRights:WebStatement'] = metadata[key]
+    delete metadata[key]
+  })
+  artworkURIs(metadata).forEach((artworkURI) => {
+    Object.keys(metadata[artworkURI]).filter((key) => {
+      return key.toLowerCase() === 'license' || key.toLowerCase() === 'xmp-xmprights:webstatement'
+    }).forEach((key) => {
+      metadata[artworkURI]['XMP-xmpRights:WebStatement'] = metadata[artworkURI][key]
+      delete metadata[artworkURI][key]
+    })
+  })
+
   // TODO: resolve the variables
 }
 
 /**
- * Adjusts the metadata related certificates
+ * Adjusts the metadata related to licenses
+ * @param {object} metadata
+ * @private
+ */
+function _prepareMetadataOfLicenses(metadata) {
+  artworkURIs(metadata).forEach((artworkURI) => {
+    const localLicense = metadata[artworkURI]['XMP-xmpRights:WebStatement']
+    if (localLicense) {
+      const absoluteFilePath = collectFiles(path.resolve(localLicense)).pop()
+      if (absoluteFilePath) {
+        metadata[artworkURI]['XMP-xmpRights:WebStatement'] = `file://${absoluteFilePath}`
+      }
+    }
+  })
+
+
+  const globalLicense = metadata['XMP-xmpRights:WebStatement']
+  if (globalLicense) {
+    const absoluteFilePath = collectFiles(path.resolve(globalLicense)).pop()
+    if (absoluteFilePath) {
+      metadata['XMP-xmpRights:WebStatement'] = `file://${absoluteFilePath}`
+      artworkURIs(metadata).forEach((artworkURI) => {
+        if (!metadata[artworkURI]['XMP-xmpRights:WebStatement']) {
+          metadata[artworkURI]['XMP-xmpRights:WebStatement'] = `file://${absoluteFilePath}`
+        }
+      })
+    }
+  }
+
+  // By now we should have the licenses (if prescribed) in the context of evry artwork, so delete the field globally
+  delete metadata['XMP-xmpRights:WebStatement']
+}
+
+/**
+ * Adjusts the metadata related to certificates
  * @param {object} metadata
  * @private
  */
 function _prepareMetadataOfCertificates(metadata) {
+  let globalCertificatePath = metadata['XMP-xmpRights:Certificate']
+
+  // If the certificate isn't provided for an artwork should we force empty or fallback to a default?
+  const globalCertificatePathIsInlineTable = _isObject(globalCertificatePath)
+  if (globalCertificatePathIsInlineTable) {
+    globalCertificatePath = Object.keys(globalCertificatePath)[0]
+  }
+  const forceEmptyIfNotPresentLocally = !globalCertificatePath && (typeof globalCertificatePath !== 'undefined')
+
+  // Check the global certificate, and use it for artworks where certificate wasn't provided
+  if (globalCertificatePath) {
+    artworkURIs(metadata).forEach((uri) => {
+      let localCertificatePath = metadata[uri]['XMP-xmpRights:Certificate']
+      const localCertificatePathIsInlineTable = (typeof localCertificatePath === 'object' &&
+          localCertificatePath !== null &&
+          !Array.isArray(localCertificatePath))
+      if (localCertificatePathIsInlineTable) {
+        localCertificatePath = Object.keys(localCertificatePath)[0]
+      }
+
+      if (localCertificatePath) {
+        // We have a local certificate, so we will use it, but merge the vars
+        if (!localCertificatePathIsInlineTable) {
+          metadata[uri]['XMP-xmpRights:Certificate'] = {}
+          metadata[uri]['XMP-xmpRights:Certificate'][localCertificatePath] = {}
+          if (globalCertificatePathIsInlineTable) {
+            metadata[uri]['XMP-xmpRights:Certificate'][localCertificatePath] = {
+              ...metadata['XMP-xmpRights:Certificate'][globalCertificatePath]
+            }
+          } else {
+            // Nothing to merge
+          }
+        } else {
+          if (globalCertificatePathIsInlineTable) {
+            metadata[uri]['XMP-xmpRights:Certificate'][localCertificatePath] = {
+              ...metadata['XMP-xmpRights:Certificate'][globalCertificatePath],
+              ...metadata[uri]['XMP-xmpRights:Certificate'][localCertificatePath]
+            }
+          } else {
+            // Nothing to merge
+          }
+        }
+      } else {
+        // We don't have a local certificate, so we will use the global one
+        if (typeof localCertificatePath === 'undefined') {
+          if (forceEmptyIfNotPresentLocally) {
+            // Force it to be empty
+            metadata[uri]['XMP-xmpRights:Certificate'] = ''
+          } else {
+            // Keep it undefined, we'll deal with it later
+          }
+        } else {
+          // Forced to be empty
+          metadata[uri]['XMP-xmpRights:Certificate'] = ''
+        }
+      }
+    })
+    // We can get rid of the global certificate, as we now have everything inside the artwork context
+    delete metadata['XMP-xmpRights:Certificate']
+  }
+
   // collect referenced certificate, turn them into URIs beforehand
   const referencedCertificateUris = artworkURIs(metadata).map((uri) => {
     let certificatePath = metadata[uri]['XMP-xmpRights:Certificate']
@@ -382,7 +497,7 @@ function _prepareMetadataOfCertificates(metadata) {
     return metadata[uri]['XMP-xmpRights:Certificate']
   }).filter((mappedCertificateUri) => !!mappedCertificateUri)
 
-  // Adjust the toml table headers that represent certificates
+  // Adjust the toml table headers that represent certificates. And some other stuff on the way...
   Object.keys(metadata).filter((key) => {
     return !key.startsWith('file://') && key.endsWith(`.pdf`)
   }).forEach((certificatePath) => {
@@ -398,11 +513,16 @@ function _prepareMetadataOfCertificates(metadata) {
             // Force it to be empty
             delete metadata[certificatePath]
           } else {
-            // Fix the reference
-            metadata[uri]['XMP-xmpRights:Certificate'] = `file://${certificatePath}`
-            metadata[`file://${certificatePath}`] = metadata[certificatePath]
-            referencedCertificateUris.push(`file://${certificatePath}`)
-            delete metadata[certificatePath]
+            if (forceEmptyIfNotPresentLocally) {
+              // Force it to be empty
+              delete metadata[certificatePath]
+            } else {
+              // Fix the reference
+              metadata[uri]['XMP-xmpRights:Certificate'] = `file://${certificatePath}`
+              metadata[`file://${certificatePath}`] = metadata[certificatePath]
+              referencedCertificateUris.push(`file://${certificatePath}`)
+              delete metadata[certificatePath]
+            }
           }
         })
       }
@@ -432,7 +552,8 @@ function _prepareMetadataOfCertificates(metadata) {
               if (specificCertificateUriIsInlineTable) {
                 specificCertificateUri = Object.keys(specificCertificateUri)[0]
               }
-              if (path.basename(specificCertificateUri) === path.basename(adjustedCertificatePath)) {
+              if (specificCertificateUri &&
+                  path.basename(specificCertificateUri) === path.basename(adjustedCertificatePath)) {
                 metadata[specificCertificateUri] = metadata[certificatePath]
                 delete metadata[certificatePath]
               }
@@ -449,15 +570,20 @@ function _prepareMetadataOfCertificates(metadata) {
               } else {
                 if (typeof metadata[artworkUri]['XMP-xmpRights:Certificate'] !== 'undefined') {
                   // Force it to be empty
-                  console.log('FORCE', certificateUri, metadata[artworkUri]['XMP-xmpRights:Certificate'])
                   delete metadata[certificatePath]
                   delete metadata[artworkUri]['XMP-xmpRights:Certificate']
                 } else {
-                  // Fix the reference
-                  metadata[artworkUri]['XMP-xmpRights:Certificate'] = certificateUri
-                  metadata[certificateUri] = metadata[certificatePath]
-                  referencedCertificateUris.push(certificateUri)
-                  delete metadata[certificatePath]
+                  if (forceEmptyIfNotPresentLocally) {
+                    // Force it to be empty
+                    delete metadata[certificatePath]
+                    delete metadata[artworkUri]['XMP-xmpRights:Certificate']
+                  } else {
+                    // Fix the reference
+                    metadata[artworkUri]['XMP-xmpRights:Certificate'] = certificateUri
+                    metadata[certificateUri] = metadata[certificatePath]
+                    referencedCertificateUris.push(certificateUri)
+                    delete metadata[certificatePath]
+                  }
                 }
               }
             }
@@ -526,4 +652,41 @@ function _prepareMetadataOfCertificates(metadata) {
       }
     }
   })
+
+  // Now we should have the certificates (or forced absence of it) in the context of every artwork
+  // As the variables have been merged as well, we can get rid of the global certificate definition for cleanness
+  referencedCertificateUris.forEach((certificateUri) => {
+    certificateUri = !_isObject(certificateUri) ? certificateUri : Object.keys(certificateUri)[0]
+    delete metadata[certificateUri]
+  })
+}
+
+/**
+ * Check if the variable is an object
+ * @param {*} variable
+ * @return {boolean}
+ * @private
+ */
+function _isObject(variable) {
+  return typeof variable === 'object' && variable !== null && !Array.isArray(variable)
+}
+
+/**
+ * Check if the variable is an object and has the given key
+ * @param {*} variable
+ * @param {string} key
+ * @return {boolean}
+ * @private
+ */
+function _isObjectWithKey(variable, key) {
+  return _isObject(variable) && Object.keys(variable).includes(key)
+}
+
+/**
+ * @param {*} variable
+ * @return {boolean}
+ * @private
+ */
+function _isEmptyObject(variable) {
+  return _isObject(variable) && Object.keys(variable).length === 0
 }
