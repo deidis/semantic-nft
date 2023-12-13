@@ -25,13 +25,29 @@ export function ingest(metadata) {
   const commonMetadata = commonMetadataForAllArtworks(metadata)
   const ingestingPromises = []
   artworkURIs().forEach((artworkURI) => {
+    const artworkAbsolutePath = artworkURI.replace('file://', '')
+    const previewAbsolutePath = path.dirname(artworkAbsolutePath) +
+        path.sep +
+        ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT +
+        artworkPreviewFileExtension(artworkAbsolutePath, metadata)
+
     ingestingPromises.push(_ingestMetadataForSpecificArtwork(artworkURI, commonMetadata).then(() => {
       return _ingestMetadataForSpecificArtwork(artworkURI, metadata[artworkURI]).then(() => {
-        console.log(`Ingested metadata into ${artworkURI}`)
+        console.log(`Ingested metadata into ${artworkAbsolutePath}`)
       })
     }).catch((err) => {
-      console.error(`Failed to ingest metadata into ${artworkURI}: ${err}`)
+      console.error(`Failed to ingest metadata into ${artworkAbsolutePath}: ${err}`)
     }))
+
+    if (fs.existsSync(previewAbsolutePath)) {
+      ingestingPromises.push(_ingestMetadataForSpecificArtwork(previewAbsolutePath, commonMetadata).then(() => {
+        return _ingestMetadataForSpecificArtwork(previewAbsolutePath, metadata[artworkURI]).then(() => {
+          console.log(`Ingested metadata into ${previewAbsolutePath}`)
+        })
+      }).catch((err) => {
+        console.error(`Failed to ingest metadata into ${previewAbsolutePath}: ${err}`)
+      }))
+    }
   })
   return Promise.all(ingestingPromises)
 }
@@ -60,14 +76,18 @@ export function clean(absoluteFilePaths, overwrite = true) {
 
 /**
  * Ingests the given metadata into the given artwork file
- * @param {string} artworkPath
+ * @param {string} artworkPathOrUri
  * @param {object} tags
  * @return {Promise<void>}
  * @private
  */
-function _ingestMetadataForSpecificArtwork(artworkPath, tags) {
-  artworkPath = artworkPath.replace('file://', '')
-  return exiftool.write(artworkPath, tags, ['-xmptoolkit=', '-overwrite_original'])
+function _ingestMetadataForSpecificArtwork(artworkPathOrUri, tags) {
+  const artworkPath = artworkPathOrUri.replace('file://', '')
+  const tagsAdjusted = {...tags}
+  if (_isObject(tagsAdjusted['XMP-xmpRights:Certificate'])) {
+    tagsAdjusted['XMP-xmpRights:Certificate'] = Object.keys(tagsAdjusted['XMP-xmpRights:Certificate'])[0]
+  }
+  return exiftool.write(artworkPath, tagsAdjusted, ['-xmptoolkit=', '-overwrite_original'])
 }
 
 /**
@@ -234,6 +254,7 @@ const commonMetadataForAllArtworks = (metadata) => {
       result[tomlJsonKey] = tomlJson[tomlJsonKey]
     }
   }
+
   return result
 }
 
@@ -268,16 +289,24 @@ export const artworkURIs = (metadata) => {
 }
 
 export const artworkPreviewFileExtension = (artworkAbsolutePathOrUri, metadata) => {
+  const artworkNameWithoutExt = path.basename(artworkAbsolutePathOrUri, path.extname(artworkAbsolutePathOrUri))
+  const artworkAbsolutePath = artworkAbsolutePathOrUri.replace('file://', '')
+  const isWorkingDir = (artworkNameWithoutExt === ARTWORK_FILE_NAME_WITHOUT_EXT)
+
   const filtered = Object.keys(metadata || _getMetadata()).filter((key) => {
-    return key.startsWith(`file://${path.dirname(artworkAbsolutePathOrUri)}`+
-        `/${path.basename(artworkAbsolutePathOrUri, path.extname(artworkAbsolutePathOrUri))}`+
-        `/${ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT}`)
+    if (isWorkingDir) {
+      return key.startsWith(`file://${path.dirname(artworkAbsolutePath)}/${ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT}`)
+    } else {
+      return key.startsWith(`file://${path.dirname(artworkAbsolutePath)}`+
+          `/${path.basename(artworkAbsolutePath, path.extname(artworkAbsolutePath))}`+
+          `/${ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT}`)
+    }
   })
 
   if (filtered.length === 1) {
     return path.extname(filtered[0])
   } else {
-    return path.extname(artworkAbsolutePathOrUri)
+    return path.extname(artworkAbsolutePath)
   }
 }
 

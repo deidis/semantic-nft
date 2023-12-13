@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import sharp from 'sharp'
-import {artworkPreviewFileExtension, artworkURIs} from './metadata.js'
+import {artworkPaths, artworkPreviewFileExtension, artworkURIs} from './metadata.js'
 
 export const ARTWORK_FILE_NAME_WITHOUT_EXT = 'artwork'
 export const ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT = 'preview'
@@ -10,11 +10,12 @@ export const ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT = 'preview'
  * Prepare every artwork for NFT processing
  * @param {string[]} originalArtworkAbsolutePaths - Absolute paths to original artwork files
  * @param {object | undefined | null} preparedMetadata - Metadata from the TOML file, if needs fixing
- * @return {{string: string}} - Map of original artwork file to working file
+ * @param {boolean} overwrite - Whether to overwrite existing files
+ * @return {Promise<{string: string}>} - Map of original artwork file to working file
  */
-export function prepareArtworks(originalArtworkAbsolutePaths, preparedMetadata) {
+export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMetadata, overwrite = true) {
   const result = {}
-  originalArtworkAbsolutePaths.forEach(async (originalArtworkAbsolutePath) => {
+  originalArtworkAbsolutePaths.forEach((originalArtworkAbsolutePath) => {
     const dir = path.dirname(originalArtworkAbsolutePath)
     const ext = path.extname(originalArtworkAbsolutePath)
     const basename = path.basename(originalArtworkAbsolutePath, ext)
@@ -25,24 +26,37 @@ export function prepareArtworks(originalArtworkAbsolutePaths, preparedMetadata) 
 
     // Copy the artwork to the working directory
     const workingArtworkAbsolutePath = path.join(newDir, `${ARTWORK_FILE_NAME_WITHOUT_EXT}${ext}`)
-    fs.copyFileSync(originalArtworkAbsolutePath, workingArtworkAbsolutePath)
+    if (fs.existsSync(workingArtworkAbsolutePath)) {
+      if (overwrite) {
+        fs.copyFileSync(originalArtworkAbsolutePath, workingArtworkAbsolutePath)
+      }
+    } else {
+      fs.copyFileSync(originalArtworkAbsolutePath, workingArtworkAbsolutePath)
+    }
 
     // Point to working file
     result[originalArtworkAbsolutePath] = workingArtworkAbsolutePath
 
+    const artworkURI = `file://${workingArtworkAbsolutePath}`
+
     // Fix metadata
     if (preparedMetadata) {
       // Update the metadata to point to the working file
-      preparedMetadata[`file://${workingArtworkAbsolutePath}`] = preparedMetadata[`file://${originalArtworkAbsolutePath}`]
+      preparedMetadata[artworkURI] = preparedMetadata[`file://${originalArtworkAbsolutePath}`]
       delete preparedMetadata[`file://${originalArtworkAbsolutePath}`]
+    }
+  })
 
-      const previewFile = await _createPreview(
-          workingArtworkAbsolutePath,
-          artworkPreviewFileExtension(originalArtworkAbsolutePath, preparedMetadata)
-      )
-
-      const artworkTitle = preparedMetadata[`file://${workingArtworkAbsolutePath}`]['XMP-dc:Title'] ||
-          preparedMetadata[`file://${workingArtworkAbsolutePath}`]['Exif:ImageDescription']
+  const previewPromises = []
+  artworkURIs(preparedMetadata).forEach((artworkURI) => {
+    const workingArtworkAbsolutePath = artworkURI.replace('file://', '')
+    previewPromises.push(_createPreview(
+        workingArtworkAbsolutePath,
+        artworkPreviewFileExtension(workingArtworkAbsolutePath, preparedMetadata),
+        overwrite
+    ).then((absolutePreviewWorkingPath) => {
+      const artworkTitle = preparedMetadata[artworkURI]['XMP-dc:Title'] ||
+              preparedMetadata[artworkURI]['Exif:ImageDescription']
 
       // Update the title on the preview image, so that it's clear that it's not the real artwork
       const previewImageTitle = {}
@@ -50,35 +64,35 @@ export function prepareArtworks(originalArtworkAbsolutePaths, preparedMetadata) 
       // As we're updating the title here, do it in the normalized way
       if (artworkTitle && artworkTitle.length > 0) {
         previewImageTitle['XMP-dc:Title'] =
-          previewImageTitle['Exif:ImageDescription'] = 'Preview of: ' + artworkTitle
+                previewImageTitle['Exif:ImageDescription'] = 'Preview of: ' + artworkTitle
       } else {
         previewImageTitle['XMP-dc:Title'] =
-          previewImageTitle['Exif:ImageDescription'] = 'Preview'
+                previewImageTitle['Exif:ImageDescription'] = 'Preview'
       }
 
-      preparedMetadata[`file://${previewFile}`] = {
-        ...preparedMetadata[`file://${originalArtworkAbsolutePath}`],
+      preparedMetadata[`file://${absolutePreviewWorkingPath}`] = {
+        ...preparedMetadata[artworkURI],
         ...previewImageTitle,
-        ...preparedMetadata[`file://${previewFile}`] // Keep any prescribed metadata
+        ...preparedMetadata[`file://${absolutePreviewWorkingPath}`] // Keep any prescribed metadata
       }
-    } else {
-      await _createPreview(workingArtworkAbsolutePath)
-    }
-
-    _copyLicenseToWorkingDir(preparedMetadata)
+    })
+    )
   })
 
-
-  return result
+  return Promise.all(previewPromises).then(() => {
+    _copyLicensesToWorkingDir(preparedMetadata, overwrite)
+    return result
+  })
 }
 
 /**
  * Create view image
  * @param {string} readyArtworkAbsolutePath
  * @param {string | undefined | null} extensionHint
+ * @param {boolean} overwrite
  * @return {Promise<string>} - Absolute path to preview image
  */
-async function _createPreview(readyArtworkAbsolutePath, extensionHint = null) {
+async function _createPreview(readyArtworkAbsolutePath, extensionHint = null, overwrite = true) {
   const dir = path.dirname(readyArtworkAbsolutePath)
   let ext = path.extname(readyArtworkAbsolutePath)
   if (ext === '.webp') {
@@ -95,31 +109,47 @@ async function _createPreview(readyArtworkAbsolutePath, extensionHint = null) {
 
   /** @type {string} */
   const previewFilePath = path.join(dir, `${ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT}${ext}`)
+  if (fs.existsSync(previewFilePath)) {
+    if (!overwrite) {
+      return Promise.resolve(previewFilePath)
+    }
+  }
+
   // ERC-721 suggestion:
   // Consider making any images at a width between 320 and 1080 pixels and
   // aspect ratio between 1.91:1 and 4:5 inclusive.
   return sharp(readyArtworkAbsolutePath)
       .resize(1080, 1080, {withoutEnlargement: true, fit: 'inside'})
       .toFile(previewFilePath)
-      .then(async () => {
+      .then(() => {
         return previewFilePath
       })
 }
 
 /**
- * @param {object | null | undefined} metadata
+ * @param {object} metadata
+ * @param {boolean} overwrite
  * @private
  */
-function _copyLicenseToWorkingDir(metadata) {
+function _copyLicensesToWorkingDir(metadata, overwrite = true) {
   artworkURIs(metadata).forEach((artworkURI) => {
     const licenseUri = metadata[artworkURI]['XMP-xmpRights:WebStatement']
     if (licenseUri && licenseUri.startsWith('file://')) {
       const licenseAbsolutePath = licenseUri.replace('file://', '')
-      const licenseWorkingFilePath = `${path.dirname(artworkURI).replace('file://', '')}/${path.basename(licenseUri)}`
-      fs.copyFileSync(
-          licenseAbsolutePath,
-          licenseWorkingFilePath
-      )
+      const licenseWorkingFilePath = `${path.dirname(artworkURI.replace('file://', ''))}/${path.basename(licenseUri)}`
+      if (fs.existsSync(licenseWorkingFilePath)) {
+        if (overwrite) {
+          fs.copyFileSync(
+              licenseAbsolutePath,
+              licenseWorkingFilePath
+          )
+        }
+      } else {
+        fs.copyFileSync(
+            licenseAbsolutePath,
+            licenseWorkingFilePath
+        )
+      }
 
       // Update the metadata to point to the working file
       metadata[artworkURI]['XMP-xmpRights:WebStatement'] = `file://${licenseWorkingFilePath}`

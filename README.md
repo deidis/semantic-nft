@@ -157,7 +157,13 @@ Besides the license one normally provides a short copyright information. This sh
 - XMP-xmpRights:UsageTerms
 - Exif:Copyright
 
-or simply `copyright`
+or simply `copyright`.
+
+Example:
+
+```toml
+copyright='This work is copyrighed by Author Name and is licensed under a Creative Commons Attribution-NonCommercial 4.0 International'
+```
 
 **IMPORTANT:** providing a license is mandatory, and doesn't fall back to any defaults. If you don't care about the rights, simply point to the [licensing/CC0.txt](./licensing/CC0.txt) license, which is the most permissive public domain license. 
 
