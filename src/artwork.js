@@ -1,7 +1,8 @@
 import fs from 'fs'
 import path from 'path'
 import sharp from 'sharp'
-import {artworkPaths, artworkPreviewFileExtension, artworkURIs} from './metadata.js'
+import {putAssociatedMedia, artworkPreviewFileExtension, artworkURIs} from './metadata.js'
+import {createHash} from 'node:crypto'
 
 export const ARTWORK_FILE_NAME_WITHOUT_EXT = 'artwork'
 export const ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT = 'preview'
@@ -44,6 +45,13 @@ export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMeta
       // Update the metadata to point to the working file
       preparedMetadata[artworkURI] = preparedMetadata[`file://${originalArtworkAbsolutePath}`]
       delete preparedMetadata[`file://${originalArtworkAbsolutePath}`]
+
+      // Improve schema
+      putAssociatedMedia(preparedMetadata[artworkURI], {
+        '@type': 'ImageObject',
+        'name': path.basename(artworkURI),
+        'contentUrl': artworkURI
+      })
     }
   })
 
@@ -75,12 +83,40 @@ export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMeta
         ...previewImageTitle,
         ...preparedMetadata[`file://${absolutePreviewWorkingPath}`] // Keep any prescribed metadata
       }
+
+      // Improve schema
+      putAssociatedMedia(preparedMetadata[artworkURI], {
+        '@type': 'ImageObject',
+        'name': path.basename(absolutePreviewWorkingPath),
+        'contentUrl': `file://${absolutePreviewWorkingPath}`
+      })
+
+      putAssociatedMedia(preparedMetadata[artworkURI], {
+        'name': path.basename(artworkURI),
+        'thumbnailUrl': `file://${absolutePreviewWorkingPath}`
+      })
     })
     )
   })
 
   return Promise.all(previewPromises).then(() => {
     _copyLicensesToWorkingDir(preparedMetadata, overwrite)
+    artworkURIs(preparedMetadata).forEach((artworkURI) => {
+      const licenseUri = preparedMetadata[artworkURI]['XMP-xmpRights:WebStatement']
+      if (licenseUri.startsWith('file://')) {
+        // Improve schema
+        putAssociatedMedia(preparedMetadata[artworkURI], {
+          '@type': path.extname(licenseUri).toLowerCase() === '.txt' ? 'TextObject' : 'MediaObject',
+          'name': path.basename(licenseUri),
+          'contentUrl': licenseUri,
+          'additionalProperty': {
+            '@type': 'PropertyValue',
+            'name': 'sha256',
+            'value': createHash('sha256').update(fs.readFileSync(licenseUri.replace('file://', ''))).digest('hex')
+          }
+        })
+      }
+    })
     return result
   })
 }
@@ -129,6 +165,7 @@ async function _createPreview(readyArtworkAbsolutePath, extensionHint = null, ov
 /**
  * @param {object} metadata
  * @param {boolean} overwrite
+ * @throws {Error} - If license is not defined
  * @private
  */
 function _copyLicensesToWorkingDir(metadata, overwrite = true) {
@@ -168,10 +205,9 @@ function _copyLicensesToWorkingDir(metadata, overwrite = true) {
  * @param {object} metadata
  */
 export function tokenize(workingArtworkAbsolutePaths, metadata) {
-  workingArtworkAbsolutePaths.forEach((workingArtworkAbsolutePath) => {
+  workingArtworkAbsolutePaths.forEach(() => {
     _validateCorrectnessAndGenerateInfoPage(metadata)
     // TODO: generate token nft.json
-    // TODO: generate UDA.zip or EDA.png
   })
 }
 
@@ -180,7 +216,9 @@ export function tokenize(workingArtworkAbsolutePaths, metadata) {
  * @private
  */
 function _validateCorrectnessAndGenerateInfoPage(metadata) {
-  if (metadata) {
-    // TODO: validate metadata and generate info page
-  }
+  // TODO: validate metadata and generate info page
+  // TODO: generate UDA.zip or EDA.png
+  artworkURIs(metadata).forEach((artworkURI) => {
+    // const id = metadata[artworkURI]['XMP-dc:identifier']
+  })
 }

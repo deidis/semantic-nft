@@ -8,7 +8,7 @@ import {exiftool} from 'exiftool-vendored'
 /**
  * @class PDF
  */
-export default class BasicCertificateOfAuthenticity {
+export default class CertificateOfAuthenticity {
   #metadata = null
   /** @type {PDFDocument} */
   #pdf = null
@@ -33,6 +33,7 @@ export default class BasicCertificateOfAuthenticity {
       this.#certificateUri = Object.keys(certificateMeta)[0]
     } else {
       this.#certificateUri = certificateMeta
+      // Make it inline table
       if (this.#certificateUri) {
         this.#metadata[artworkWorkingFileUri]['XMP-xmpRights:Certificate'] = {
           [this.#certificateUri]: {},
@@ -174,6 +175,15 @@ export default class BasicCertificateOfAuthenticity {
       return !Object.keys(infoTags).includes(key.toLowerCase())
     }).forEach((key) => {
       result[key] = this.certificate[key].toString()
+    })
+
+    // Also pass the artwork hash
+    Object.keys(this.#metadata[this.#artworkUri]).forEach((key) => {
+      if (key === 'schema:additionalProperty') {
+        if (Array.isArray(this.#metadata[this.#artworkUri][key])) {
+
+        }
+      }
     })
 
     return result

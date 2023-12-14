@@ -64,9 +64,20 @@ Example 2:
 Now we specify the group and therefore after running both files we actually set only specific field in each case. 
 
 
-**IMPORTANT** Please note that some of the metadata, such as the URI of the certificate of authenticity, identifier, etc. might not be available untl the moment when the NFT is minted. Therefore, be prepared to add them later ([Silvermind digital minting service](https://www.silvermind.art) will help with th).
+**IMPORTANT** Please note that some of the metadata, such as the URI of the certificate of authenticity, identifier, etc. might not be available untl the moment when the NFT is minted. Therefore, be prepared to add them later ([Silvermind digital minting service](https://www.silvermind.art) will help with this).
 
 For privacy purposes and cleanness, we **clear all the metadata** from the image and add what's provided in the `.toml` file(s). However, one can also take a different approach, and actually write/clear only specific tags.
+
+#### NFT specific metadata
+
+Some metadata is destined for the artwork image file itself, but some of it is for the token itself. When `nft.json` is created the metadata specified in `.toml` and the metadata that is derived during processing is merged together. When you want to add something that should only go to `nft.json` you have to specify those fields with prefixes:
+
+- `nft:xyz` - will end up in the `nft.json` without the *nft:* prefix
+- `schema:xyz` - will end up in the `nft.json` without the *schema:* prefix
+
+When there's no prefix, the system will attempt to ingest it into the artwork image file, and may therefore fail. With prefixes, you can control what custom info gets into the token.
+
+Though, *nft:* and *schema:* are used internally to differentiate the vocabularies, however effect is the same - the prefix is stripped, because we use only one schema without namespaces in JSON-LD `"@context": "https://schema.org"`.
 
 ### Certificate of authenticity
 A certificate of authenticity is a pdf digitally signed by the author (and by some other authorities if needed).
@@ -190,6 +201,12 @@ Everything will be uploaded to IPFS, the contents will look like this:
 | nft.json                           | nft.json                         |
 | info.html                          | info.html                        |
 | UDA.zip                            | EDA.png                          |
+
+**IMPORTANT:** make sure that the `identifier` of the artwork is set, otherwise nft is impossible. For the identifier you need to have a collection (contract) address upfront and derive the token id. The identifier has URN structure like this:
+```
+ urn:<blockchain>:<collectionid>:<tokenid>
+```
+everything in lowercase.
 
 #### Contents of UDA.zip
 All the files that are outside zip are also inside zip, except for `nft.json`.

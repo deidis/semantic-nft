@@ -30,19 +30,20 @@ try {
     console.debug(`- ${path.relative(process.cwd(), file)}`)
   })
 
-  console.log('Preparing working artwork files...')
+  console.log('Preparing working files...')
   const workingFiles = await prepareArtworks(originalArtworkPaths, metadata)
 
-  console.log('Cleaning metadata...')
-  await clean(Object.values(workingFiles))
-
   console.log('Ingesting metadata...')
+  await clean(Object.values(workingFiles))
   await ingest()
+
+  // TODO: collect all files that were prescribed in schema:associatedMedia
 
   console.log('Prepare certificates of authenticity...')
   await prepareCertificates(metadata)
-  // console.log(JSON.stringify(metadata, null, 2))
+  console.log(JSON.stringify(metadata, null, 2))
 } catch (err) {
+  // console.error('ERROR:', err.message)
   console.error(err)
 } finally {
   exiftool.end(true).finally(() => {

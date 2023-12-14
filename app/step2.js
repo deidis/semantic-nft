@@ -2,7 +2,7 @@ import path from 'path'
 import {prepareMetadata, clean, artworkPaths, ingest} from '../src/metadata.js'
 import {prepareArtworks} from '../src/artwork.js'
 import {collectFiles} from '../src/collectFiles.js'
-import {prepareCertificates} from '../src/certificate.js'
+import {checkCertificates} from '../src/certificate.js'
 import {exiftool} from 'exiftool-vendored'
 
 try {
@@ -30,15 +30,18 @@ try {
     console.debug(`- ${path.relative(process.cwd(), file)}`)
   })
 
-  console.log('Preparing working artwork files (without overwriting)...')
+  console.log('Preparing working files (without overwriting)...')
   const workingFiles = await prepareArtworks(originalArtworkPaths, metadata, false)
 
-  console.log('Cleaning metadata...')
+  console.log('Ingesting metadata (overwriting)...')
   await clean(Object.values(workingFiles))
-
-  console.log('Ingesting metadata...')
   await ingest()
+
+  console.log('Checking certificates of authenticity...')
+  checkCertificates(metadata)
+  // console.log(JSON.stringify(metadata, null, 2))
 } catch (err) {
+  // console.error('ERROR:', err.message)
   console.error(err)
 } finally {
   exiftool.end(true).finally(() => {

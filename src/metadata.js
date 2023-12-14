@@ -8,6 +8,8 @@ import {
   ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT,
 } from './artwork.js'
 import {CERTIFICATE_FILE_NAME_WITHOUT_EXT} from './certificate.js'
+import {createHash} from 'node:crypto'
+import _ from 'lodash'
 
 const __METADATA_CACHE = {}
 const __CACHE_KEY = (tomlFileAbsolutePaths) => {
@@ -19,7 +21,7 @@ const __CACHE_KEY = (tomlFileAbsolutePaths) => {
  * @param {string[]|undefined|null} metadata - Absolute paths to the TOML files
  * @return {Promise<void>}
  */
-export function ingest(metadata) {
+export async function ingest(metadata) {
   metadata = metadata || _getMetadata()
   // console.debug(JSON.stringify(metadata, null, 2))
   const commonMetadata = commonMetadataForAllArtworks(metadata)
@@ -33,19 +35,35 @@ export function ingest(metadata) {
 
     ingestingPromises.push(_ingestMetadataForSpecificArtwork(artworkURI, commonMetadata).then(() => {
       return _ingestMetadataForSpecificArtwork(artworkURI, metadata[artworkURI]).then(() => {
+        putAssociatedMedia(metadata[artworkURI], {
+          'name': path.basename(artworkAbsolutePath),
+          'additionalProperty': {
+            '@type': 'PropertyValue',
+            'name': 'sha256',
+            'value': createHash('sha256').update(fs.readFileSync(artworkAbsolutePath)).digest('hex')
+          }
+        })
         console.log(`Ingested metadata into ${artworkAbsolutePath}`)
       })
     }).catch((err) => {
-      console.error(`Failed to ingest metadata into ${artworkAbsolutePath}: ${err}`)
+      console.error(`ERROR: Failed to ingest metadata into ${artworkAbsolutePath}: ${err}`)
     }))
 
     if (fs.existsSync(previewAbsolutePath)) {
       ingestingPromises.push(_ingestMetadataForSpecificArtwork(previewAbsolutePath, commonMetadata).then(() => {
         return _ingestMetadataForSpecificArtwork(previewAbsolutePath, metadata[artworkURI]).then(() => {
+          putAssociatedMedia(metadata[artworkURI], {
+            'name': path.basename(previewAbsolutePath),
+            'additionalProperty': {
+              '@type': 'PropertyValue',
+              'name': 'sha256',
+              'value': createHash('sha256').update(fs.readFileSync(previewAbsolutePath)).digest('hex')
+            }
+          })
           console.log(`Ingested metadata into ${previewAbsolutePath}`)
         })
       }).catch((err) => {
-        console.error(`Failed to ingest metadata into ${previewAbsolutePath}: ${err}`)
+        console.error(`ERROR: Failed to ingest metadata into ${previewAbsolutePath}: ${err}`)
       }))
     }
   })
@@ -84,9 +102,22 @@ export function clean(absoluteFilePaths, overwrite = true) {
 function _ingestMetadataForSpecificArtwork(artworkPathOrUri, tags) {
   const artworkPath = artworkPathOrUri.replace('file://', '')
   const tagsAdjusted = {...tags}
+
+  // Flatten the certificate information for exiftool
   if (_isObject(tagsAdjusted['XMP-xmpRights:Certificate'])) {
     tagsAdjusted['XMP-xmpRights:Certificate'] = Object.keys(tagsAdjusted['XMP-xmpRights:Certificate'])[0]
   }
+
+  // Only keep the metadata that makes sense for exiftool
+  Object.keys(tagsAdjusted).forEach((key) => {
+    if ((key.startsWith('schema:')) || (key.startsWith('nft:'))) {
+      // Schema.org fields or nft specific fields are not intended for exiftool
+      delete tagsAdjusted[key]
+    }
+  })
+
+  // TODO: lowercase the XMP-dc:identifier
+
   return exiftool.write(artworkPath, tagsAdjusted, ['-xmptoolkit=', '-overwrite_original'])
 }
 
@@ -333,6 +364,7 @@ function _normalizeFieldNames(metadata) {
   // console.log(metadata)
   // TODO: recognize the keys in metadata and convert them into tags
   // TODO: recognize the vocabulary inside certificate tags as well!!!
+  // TODO: merge global values into local for every artwork
 
   // Normalize the "certificate"
   Object.keys(metadata).filter((key) => {
@@ -443,6 +475,8 @@ function _prepareMetadataOfCertificates(metadata) {
     globalCertificatePath = `./${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`
   }
 
+  // It's safe to clean it up from the metadata, as we have what we need from the global certificate info
+  delete metadata['XMP-xmpRights:Certificate']
 
   // Check the global certificate, and use it for artworks where certificate wasn't provided
 
@@ -742,4 +776,30 @@ function _prepareMetadataOfCertificates(metadata) {
  */
 function _isObject(variable) {
   return typeof variable === 'object' && variable !== null && !Array.isArray(variable)
+}
+
+/**
+ * Will add or update the associated media metadata by name
+ * @param {object} artworkMetadata
+ * @param {object} associatedMediaObjectMetadata
+ */
+export function putAssociatedMedia(artworkMetadata, associatedMediaObjectMetadata) {
+  artworkMetadata['schema:associatedMedia'] =
+      artworkMetadata['schema:associatedMedia'] === undefined ? [] : artworkMetadata['schema:associatedMedia']
+
+  if (_isObject(artworkMetadata['schema:associatedMedia'])) {
+    artworkMetadata['schema:associatedMedia'] = Object.values(artworkMetadata['schema:associatedMedia'])
+  }
+
+  let foundAt = -1
+  artworkMetadata['schema:associatedMedia'].forEach((obj, index) => {
+    if (obj['name'] === associatedMediaObjectMetadata['name']) {
+      foundAt = index
+    }
+  })
+  if (foundAt !== -1) {
+    _.merge(artworkMetadata['schema:associatedMedia'][foundAt], associatedMediaObjectMetadata)
+  } else {
+    artworkMetadata['schema:associatedMedia'].push(associatedMediaObjectMetadata)
+  }
 }
