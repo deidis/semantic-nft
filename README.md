@@ -101,6 +101,7 @@ For more examples, please refer to the [example project](./nft-workspace/example
 - author (PDF info tag to represent the author of the PDF, defaults to the artist (_XMP-dc:Creator_ field) of the artwork)
 - title (PDF info tag to represent the title of the PDF, defaults to "Certificate of authenticity")
 - subject (PDF info tag to represent the description of the contents of the PDF, defaults to empty string)
+- artwork_hash (variable. Automatically added after the artwork is injected and the final checksum is available)
 - TODO: add all
 
 If you already have a certificate PDF and simply want to use it, you can do it like this:

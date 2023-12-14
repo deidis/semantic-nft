@@ -6,6 +6,7 @@ import path from 'path'
 import {createHash} from 'node:crypto'
 
 export const CERTIFICATE_FILE_NAME_WITHOUT_EXT = 'certificate'
+export const CERTIFICATE_SUPPORTED_INFO_TAGS = ['Author', 'Title', 'Subject']
 
 /**
  * @param {object} preparedMetadata

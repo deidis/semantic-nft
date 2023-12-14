@@ -7,7 +7,7 @@ import {
   ARTWORK_FILE_NAME_WITHOUT_EXT,
   ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT,
 } from './artwork.js'
-import {CERTIFICATE_FILE_NAME_WITHOUT_EXT} from './certificate.js'
+import {CERTIFICATE_FILE_NAME_WITHOUT_EXT, CERTIFICATE_SUPPORTED_INFO_TAGS} from './certificate.js'
 import {createHash} from 'node:crypto'
 import _ from 'lodash'
 
@@ -179,10 +179,10 @@ export function prepareMetadata(tomlFileAbsolutePaths) {
     }
   })
 
+  // The order of calling these functions is important here!
   _normalizeFieldNames(result)
-
-  _prepareMetadataOfCertificates(result)
   _prepareMetadataOfLicenses(result)
+  _prepareMetadataOfCertificates(result)
 
   __METADATA_CACHE[cachekey] = result
 
@@ -356,6 +356,10 @@ function _successfulCatch(err) {
 }
 
 /**
+ * Normalizes the field names in the metadata. Such things like "license" will become "XMP-xmpRights:WebStatement" and so on.
+ *
+ * This method does NOT normalize the field names within the "XMP-xmpRights:Certificate" as it's something
+ * to be done during _prepareMetadataOfCertificates() method.
  *
  * @param {Object} metadata
  * @private
@@ -363,7 +367,6 @@ function _successfulCatch(err) {
 function _normalizeFieldNames(metadata) {
   // console.log(metadata)
   // TODO: recognize the keys in metadata and convert them into tags
-  // TODO: recognize the vocabulary inside certificate tags as well!!!
   // TODO: merge global values into local for every artwork
 
   // Normalize the "certificate"
@@ -459,6 +462,7 @@ function _prepareMetadataOfLicenses(metadata) {
  * @private
  */
 function _prepareMetadataOfCertificates(metadata) {
+  _normalizeCertificateFieldNames(metadata['XMP-xmpRights:Certificate'])
   let globalCertificatePath = metadata['XMP-xmpRights:Certificate']
 
   // If the certificate isn't provided for an artwork should we force empty or fallback to a default?
@@ -483,7 +487,9 @@ function _prepareMetadataOfCertificates(metadata) {
 
   // collect referenced certificate, turn them into URIs beforehand
   const artworksNotReferencingCertificateUris = []
+  /** @type {[string|object][]} */
   const referencedCertificateUris = artworkURIs(metadata).map((uri) => {
+    _normalizeCertificateFieldNames(metadata[uri]['XMP-xmpRights:Certificate'])
     let certificatePath = metadata[uri]['XMP-xmpRights:Certificate']
     const certificatePathIsInlineTable = (typeof certificatePath === 'object' &&
         certificatePath !== null &&
@@ -544,8 +550,10 @@ function _prepareMetadataOfCertificates(metadata) {
   Object.keys(metadata).filter((key) => {
     return !key.startsWith('file://') && key.endsWith(`.pdf`)
   }).forEach((certificatePath) => {
+    _normalizeCertificateFieldNames({[certificatePath]: metadata[certificatePath]})
     if (path.isAbsolute(certificatePath)) {
-      if (referencedCertificateUris.includes(`file://${certificatePath}`)) {
+      if (referencedCertificateUris
+          .map((ref) => _isObject(ref) ? Object.keys(ref)[0] : ref).includes(`file://${certificatePath}`)) {
         metadata[`file://${certificatePath}`] = metadata[certificatePath]
         delete metadata[certificatePath]
       } else {
@@ -638,7 +646,8 @@ function _prepareMetadataOfCertificates(metadata) {
             if (path.basename(artworkUri, path.extname(artworkUri)) === artworkNameWithoutExt) {
               const certificateUri = 'file://' + path.resolve(path.dirname(artworkUri).replace('file://', '') +
                   path.sep + artworkNameWithoutExt + path.sep + adjustedCertificatePath)
-              if (referencedCertificateUris.includes(certificateUri)) {
+              if (referencedCertificateUris
+                  .map((ref) => _isObject(ref) ? Object.keys(ref)[0] : ref).includes(certificateUri)) {
                 metadata[certificateUri] = metadata[certificatePath]
                 delete metadata[certificatePath]
               } else {
@@ -718,7 +727,8 @@ function _prepareMetadataOfCertificates(metadata) {
     }
   })
 
-  // Everything that's specified inline will be overwritten by the specific toml table
+  // Everything that's specified inline will be overwritten by the specific toml table.
+  // NOTE: we already have normalized certificate fields by now
   artworkURIs(metadata).forEach((uri) => {
     let referencedCertificateUri = metadata[uri]['XMP-xmpRights:Certificate']
     if (referencedCertificateUri) {
@@ -766,6 +776,75 @@ function _prepareMetadataOfCertificates(metadata) {
     certificateUri = !_isObject(certificateUri) ? certificateUri : Object.keys(certificateUri)[0]
     delete metadata[certificateUri]
   })
+
+
+  // For every certificate that we have, we need to add default values
+  // NOTE: that all the fields have already been normalized
+  artworkURIs(metadata).forEach((artworkUri) => {
+    const certificateMeta = Object.values(metadata[artworkUri]['XMP-xmpRights:Certificate'])[0]
+    CERTIFICATE_SUPPORTED_INFO_TAGS.forEach((tag) => {
+      // Prefer more specific declaration
+      if (`XMP-pdf:${tag}` in certificateMeta) {
+        certificateMeta[tag] = certificateMeta[`XMP-pdf:${tag}`]
+        delete certificateMeta[`XMP-pdf:${tag}`]
+      }
+    })
+
+    // Fallback to defaults
+    CERTIFICATE_SUPPORTED_INFO_TAGS.forEach((tag) => {
+      if (!(tag in certificateMeta)) {
+        switch (tag) {
+          case 'Author':
+            if (metadata[artworkUri]['XMP-dc:Creator']) {
+              certificateMeta[tag] = metadata[artworkUri]['XMP-dc:Creator']
+            }
+            break
+          case 'Title':
+            certificateMeta[tag] = 'Certificate of Authenticity'
+            break
+        }
+      }
+    })
+  })
+}
+
+/**
+ * Normalizes the field names in the certificate metadata. Such things like "author" will become "Title" and so on.
+ *
+ * @param {Object} certificateMetadata
+ * @private
+ */
+function _normalizeCertificateFieldNames(certificateMetadata) {
+  if (certificateMetadata && _isObject(certificateMetadata) && Object.keys(certificateMetadata).length !== 0) {
+    const inlineTable = certificateMetadata[Object.keys(certificateMetadata)[0]]
+    const renamingMap = {}
+
+    Object.keys(inlineTable).forEach((key) => {
+      const keyCapitalized = key.charAt(0).toUpperCase() + key.toLowerCase().slice(1)
+      if (CERTIFICATE_SUPPORTED_INFO_TAGS.includes(keyCapitalized)) {
+        renamingMap[key] = keyCapitalized
+      } else {
+        if (key.toLowerCase().startsWith('xmp-pdf:')) {
+          let realKeyName = key.split(':')
+          realKeyName.shift()
+          realKeyName = realKeyName.join(':')
+          renamingMap[key] = `XMP-pdf:${realKeyName.charAt(0).toUpperCase() + realKeyName.toLowerCase().slice(1)}`
+        } else {
+          // We're dealing with variables not info tags, those we always lowercase
+          renamingMap[key] = key.toLowerCase()
+        }
+      }
+    })
+
+    Object.keys(renamingMap).forEach((key) => {
+      if (key !== renamingMap[key]) {
+        inlineTable[renamingMap[key]] = inlineTable[key]
+        delete inlineTable[key]
+      }
+    })
+  } else {
+    // Nothing to normalize, it's not an inline table
+  }
 }
 
 /**

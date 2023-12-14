@@ -1,7 +1,7 @@
 import PDFDocument from 'pdfkit'
 import fs from 'fs'
 import path from 'path'
-import {CERTIFICATE_FILE_NAME_WITHOUT_EXT, isSigned} from './certificate.js'
+import {CERTIFICATE_FILE_NAME_WITHOUT_EXT, isSigned, CERTIFICATE_SUPPORTED_INFO_TAGS} from './certificate.js'
 import {exiftool} from 'exiftool-vendored'
 
 // Create and export a class that creates a PDF with pdfkit and is made for inheritance
@@ -148,15 +148,11 @@ export default class CertificateOfAuthenticity {
    * @return {{string:string[]}}
    */
   pdfInfoTagsFromMetadata() {
-    const result = {
-      'Title': 'Certificate of Authenticity',
-      'Author': this.#metadata['XMP-dc:creator'] ? this.#metadata['XMP-dc:Creator'] : '',
-    }
-
+    const result = {}
     Object.keys(this.certificate).filter((key) => {
       // Take only supported fields
-      const field = key.toLowerCase()
-      return field.startsWith('xmp-pdf') || ['title', 'author', 'subject'].includes(field)
+      return key.toLowerCase().startsWith('xmp-pdf:') ||
+          CERTIFICATE_SUPPORTED_INFO_TAGS.includes(key.charAt(0).toUpperCase() + key.toLowerCase().slice(1))
     }).forEach((key) => {
       result[key] = this.certificate[key].toString()
     })
@@ -175,15 +171,6 @@ export default class CertificateOfAuthenticity {
       return !Object.keys(infoTags).includes(key.toLowerCase())
     }).forEach((key) => {
       result[key] = this.certificate[key].toString()
-    })
-
-    // Also pass the artwork hash
-    Object.keys(this.#metadata[this.#artworkUri]).forEach((key) => {
-      if (key === 'schema:additionalProperty') {
-        if (Array.isArray(this.#metadata[this.#artworkUri][key])) {
-
-        }
-      }
     })
 
     return result
