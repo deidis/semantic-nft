@@ -49,7 +49,7 @@ export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMeta
       // Improve schema
       enrichSchemaAssociatedMedia(preparedMetadata[artworkURI], {
         '@type': 'ImageObject',
-        'name': path.basename(artworkURI),
+        'identifier': path.basename(artworkURI),
         'contentUrl': artworkURI
       })
     }
@@ -87,12 +87,12 @@ export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMeta
       // Improve schema
       enrichSchemaAssociatedMedia(preparedMetadata[artworkURI], {
         '@type': 'ImageObject',
-        'name': path.basename(absolutePreviewWorkingPath),
+        'identifier': path.basename(absolutePreviewWorkingPath),
         'contentUrl': `file://${absolutePreviewWorkingPath}`
       })
 
       enrichSchemaAssociatedMedia(preparedMetadata[artworkURI], {
-        'name': path.basename(artworkURI),
+        'identifier': path.basename(artworkURI),
         'thumbnailUrl': `file://${absolutePreviewWorkingPath}`
       })
     })
@@ -107,7 +107,7 @@ export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMeta
         // Improve schema
         enrichSchemaAssociatedMedia(preparedMetadata[artworkURI], {
           '@type': path.extname(licenseUri).toLowerCase() === '.txt' ? 'TextObject' : 'MediaObject',
-          'name': path.basename(licenseUri),
+          'identifier': path.basename(licenseUri),
           'contentUrl': licenseUri,
           'additionalProperty': {
             '@type': 'PropertyValue',

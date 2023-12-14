@@ -36,7 +36,7 @@ export async function ingest(metadata) {
     ingestingPromises.push(_ingestMetadataForSpecificArtwork(artworkURI, commonMetadata).then(() => {
       return _ingestMetadataForSpecificArtwork(artworkURI, metadata[artworkURI]).then(() => {
         enrichSchemaAssociatedMedia(metadata[artworkURI], {
-          'name': path.basename(artworkAbsolutePath),
+          'identifier': path.basename(artworkAbsolutePath),
           'additionalProperty': {
             '@type': 'PropertyValue',
             'name': 'sha256',
@@ -53,7 +53,7 @@ export async function ingest(metadata) {
       ingestingPromises.push(_ingestMetadataForSpecificArtwork(previewAbsolutePath, commonMetadata).then(() => {
         return _ingestMetadataForSpecificArtwork(previewAbsolutePath, metadata[artworkURI]).then(() => {
           enrichSchemaAssociatedMedia(metadata[artworkURI], {
-            'name': path.basename(previewAbsolutePath),
+            'identifier': path.basename(previewAbsolutePath),
             'additionalProperty': {
               '@type': 'PropertyValue',
               'name': 'sha256',
@@ -368,6 +368,7 @@ function _normalizeFieldNames(metadata) {
   // console.log(metadata)
   // TODO: recognize the keys in metadata and convert them into tags
   // TODO: merge global values into local for every artwork
+  // TODO: add @context, @type (though this one should normally be specified in the .toml), @id
 
   // Normalize the "certificate"
   Object.keys(metadata).filter((key) => {
@@ -872,7 +873,7 @@ export function enrichSchemaAssociatedMedia(artworkMetadata, associatedMediaObje
 
   let foundAt = -1
   artworkMetadata['schema:associatedMedia'].forEach((obj, index) => {
-    if (obj['name'] === associatedMediaObjectMetadata['name']) {
+    if (obj['identifier'] === associatedMediaObjectMetadata['identifier']) {
       foundAt = index
     }
   })

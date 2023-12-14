@@ -20,7 +20,7 @@ export async function prepareCertificates(preparedMetadata) {
           if (absoluteCertificatePath) {
             enrichSchemaAssociatedMedia(preparedMetadata[artworkUri], {
               '@type': 'MediaObject',
-              'name': path.basename(absoluteCertificatePath),
+              'identifier': path.basename(absoluteCertificatePath),
               'contentUrl': `file://${absoluteCertificatePath}`,
               'additionalProperty': {
                 '@type': 'PropertyValue',
@@ -72,7 +72,7 @@ export function checkCertificates(preparedMetadata, quiet = false) {
       if (result) {
         enrichSchemaAssociatedMedia(preparedMetadata[artworkUri], {
           '@type': 'MediaObject',
-          'name': `${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`,
+          'identifier': `${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`,
           'contentUrl': `file://${absolutePathToCertificate}`,
           'additionalProperty': {
             '@type': 'PropertyValue',
