@@ -1,8 +1,9 @@
 import fs from 'fs'
 import {extractSignature} from '@signpdf/utils'
 import CertificateOfAuthenticity from './CertificateOfAuthenticity.js'
-import {artworkURIs} from './metadata.js'
+import {artworkURIs, enrichSchemaAssociatedMedia} from './metadata.js'
 import path from 'path'
+import {createHash} from 'node:crypto'
 
 export const CERTIFICATE_FILE_NAME_WITHOUT_EXT = 'certificate'
 
@@ -13,9 +14,23 @@ export const CERTIFICATE_FILE_NAME_WITHOUT_EXT = 'certificate'
 export async function prepareCertificates(preparedMetadata) {
   const promises = []
   artworkURIs(preparedMetadata).forEach((artworkUri) => {
-    promises.push((new CertificateOfAuthenticity(artworkUri, preparedMetadata)).build())
+    promises.push(
+        (new CertificateOfAuthenticity(artworkUri, preparedMetadata)).build().then((absoluteCertificatePath) => {
+          if (absoluteCertificatePath) {
+            enrichSchemaAssociatedMedia(preparedMetadata[artworkUri], {
+              '@type': 'MediaObject',
+              'name': path.basename(absoluteCertificatePath),
+              'contentUrl': `file://${absoluteCertificatePath}`,
+              'additionalProperty': {
+                '@type': 'PropertyValue',
+                'name': 'sha256',
+                'value': createHash('sha256').update(fs.readFileSync(absoluteCertificatePath)).digest('hex')
+              },
+            })
+          }
+        })
+    )
   })
-  // TODO: apply the metadata on the pdf if it's not signed
   // The metadata to adjust:
   // - checksum of the artwork
 
@@ -53,13 +68,25 @@ export function checkCertificates(preparedMetadata, quiet = false) {
         }
       }
 
+      if (result) {
+        enrichSchemaAssociatedMedia(preparedMetadata[artworkUri], {
+          '@type': 'MediaObject',
+          'name': `${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`,
+          'contentUrl': `file://${absolutePathToCertificate}`,
+          'additionalProperty': {
+            '@type': 'PropertyValue',
+            'name': 'sha256',
+            'value': createHash('sha256').update(fs.readFileSync(absoluteCertificatePath)).digest('hex')
+          },
+        })
+      }
+
       // TODO: for extra caution we might want to check if the artwork checksum and other info is mentioned (content valid?)
     }
   })
 
   return result
 }
-
 
 /**
  * @param {string} absoluteFilePath

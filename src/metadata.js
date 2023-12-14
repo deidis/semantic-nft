@@ -35,7 +35,7 @@ export async function ingest(metadata) {
 
     ingestingPromises.push(_ingestMetadataForSpecificArtwork(artworkURI, commonMetadata).then(() => {
       return _ingestMetadataForSpecificArtwork(artworkURI, metadata[artworkURI]).then(() => {
-        putAssociatedMedia(metadata[artworkURI], {
+        enrichSchemaAssociatedMedia(metadata[artworkURI], {
           'name': path.basename(artworkAbsolutePath),
           'additionalProperty': {
             '@type': 'PropertyValue',
@@ -52,7 +52,7 @@ export async function ingest(metadata) {
     if (fs.existsSync(previewAbsolutePath)) {
       ingestingPromises.push(_ingestMetadataForSpecificArtwork(previewAbsolutePath, commonMetadata).then(() => {
         return _ingestMetadataForSpecificArtwork(previewAbsolutePath, metadata[artworkURI]).then(() => {
-          putAssociatedMedia(metadata[artworkURI], {
+          enrichSchemaAssociatedMedia(metadata[artworkURI], {
             'name': path.basename(previewAbsolutePath),
             'additionalProperty': {
               '@type': 'PropertyValue',
@@ -783,7 +783,7 @@ function _isObject(variable) {
  * @param {object} artworkMetadata
  * @param {object} associatedMediaObjectMetadata
  */
-export function putAssociatedMedia(artworkMetadata, associatedMediaObjectMetadata) {
+export function enrichSchemaAssociatedMedia(artworkMetadata, associatedMediaObjectMetadata) {
   artworkMetadata['schema:associatedMedia'] =
       artworkMetadata['schema:associatedMedia'] === undefined ? [] : artworkMetadata['schema:associatedMedia']
 

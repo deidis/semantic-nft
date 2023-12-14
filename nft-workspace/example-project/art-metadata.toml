@@ -23,6 +23,9 @@ title = "Title of the landscape photo"
 # If relative path is given, we'll try to generate it into landscape/certificate.pdf
 certificate="certificate.pdf"
 license='licensing/CC BY.txt'
+"schema:associatedMedia" = [
+    {"name" = "test", "contentUrl" = "https://example.com/test.jpg"},
+]
 
 # We can dictate what format will the preview be generated, and what metadata it should have (overriding form the artwork)
 ["landscape/preview.webp"]

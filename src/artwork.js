@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import sharp from 'sharp'
-import {putAssociatedMedia, artworkPreviewFileExtension, artworkURIs} from './metadata.js'
+import {enrichSchemaAssociatedMedia, artworkPreviewFileExtension, artworkURIs} from './metadata.js'
 import {createHash} from 'node:crypto'
 
 export const ARTWORK_FILE_NAME_WITHOUT_EXT = 'artwork'
@@ -47,7 +47,7 @@ export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMeta
       delete preparedMetadata[`file://${originalArtworkAbsolutePath}`]
 
       // Improve schema
-      putAssociatedMedia(preparedMetadata[artworkURI], {
+      enrichSchemaAssociatedMedia(preparedMetadata[artworkURI], {
         '@type': 'ImageObject',
         'name': path.basename(artworkURI),
         'contentUrl': artworkURI
@@ -85,13 +85,13 @@ export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMeta
       }
 
       // Improve schema
-      putAssociatedMedia(preparedMetadata[artworkURI], {
+      enrichSchemaAssociatedMedia(preparedMetadata[artworkURI], {
         '@type': 'ImageObject',
         'name': path.basename(absolutePreviewWorkingPath),
         'contentUrl': `file://${absolutePreviewWorkingPath}`
       })
 
-      putAssociatedMedia(preparedMetadata[artworkURI], {
+      enrichSchemaAssociatedMedia(preparedMetadata[artworkURI], {
         'name': path.basename(artworkURI),
         'thumbnailUrl': `file://${absolutePreviewWorkingPath}`
       })
@@ -105,7 +105,7 @@ export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMeta
       const licenseUri = preparedMetadata[artworkURI]['XMP-xmpRights:WebStatement']
       if (licenseUri.startsWith('file://')) {
         // Improve schema
-        putAssociatedMedia(preparedMetadata[artworkURI], {
+        enrichSchemaAssociatedMedia(preparedMetadata[artworkURI], {
           '@type': path.extname(licenseUri).toLowerCase() === '.txt' ? 'TextObject' : 'MediaObject',
           'name': path.basename(licenseUri),
           'contentUrl': licenseUri,
