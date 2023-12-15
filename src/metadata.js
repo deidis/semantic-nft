@@ -389,8 +389,8 @@ function _successfulCatch(err) {
  */
 function _normalizeFields(metadata) {
   Object.keys(metadata).forEach((key) => {
-    const thisKey = lookupQualifiedName(key, false)
-    const betterKey = lookupQualifiedName(key)
+    const thisKey = lookupQualifiedName(key, metadata[key], false)
+    const betterKey = lookupQualifiedName(key, metadata[key])
     if (betterKey && thisKey) {
       if (betterKey !== thisKey) {
         metadata[betterKey] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
@@ -404,12 +404,12 @@ function _normalizeFields(metadata) {
         metadata[key] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
       }
     }
-    updateObjectFieldWithAllSynonyms(metadata, key, metadata[key])
+    updateObjectFieldWithAllSynonyms(metadata, key, metadata[key], false)
   })
   artworkURIs(metadata).forEach((artworkURI) => {
     Object.keys(metadata[artworkURI]).forEach((key) => {
-      const thisKey = lookupQualifiedName(key, false)
-      const betterKey = lookupQualifiedName(key)
+      const thisKey = lookupQualifiedName(key, metadata[artworkURI][key], false)
+      const betterKey = lookupQualifiedName(key, metadata[artworkURI][key])
       if (betterKey && thisKey) {
         if (betterKey !== thisKey) {
           metadata[artworkURI][betterKey] = _.isString(metadata[artworkURI][key]) ?
@@ -437,14 +437,14 @@ function _normalizeFields(metadata) {
         }
       }
 
-      updateObjectFieldWithAllSynonyms(metadata[artworkURI], key, metadata[artworkURI][key])
+      updateObjectFieldWithAllSynonyms(metadata[artworkURI], key, metadata[artworkURI][key], false)
     })
   })
 
   _.difference(Object.keys(metadata), artworkURIs(metadata)).forEach((nonArtworkFileUriProbablyPreview) => {
     Object.keys(metadata[nonArtworkFileUriProbablyPreview]).forEach((key) => {
-      const thisKey = lookupQualifiedName(key, false)
-      const betterKey = lookupQualifiedName(key)
+      const thisKey = lookupQualifiedName(key, metadata[nonArtworkFileUriProbablyPreview][key], false)
+      const betterKey = lookupQualifiedName(key, metadata[nonArtworkFileUriProbablyPreview][key])
       if (betterKey && thisKey) {
         if (betterKey !== thisKey) {
           metadata[nonArtworkFileUriProbablyPreview][betterKey] =

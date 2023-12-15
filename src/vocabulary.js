@@ -1,3 +1,5 @@
+import _ from 'lodash'
+
 /**
  * IMPORTANT: ordering here matters, as we want to resolve XMP-dc, XMP-xmpRights, Exif, nft, schema in that order.
  * Luckily at the moment of writing this, we have only nft:name and schema:name that can conflict (which is fine).
@@ -23,7 +25,7 @@ const synonyms = [
   ['XMP-xmpRights:Certificate',],
   ['XMP-xmpRights:Marked',],
   ['XMP-xmpRights:Owner', 'schema:copyrightHolder',],
-  ['XMP-xmpRights:UsageTerms', 'schema:usageInfo',],
+  ['XMP-xmpRights:UsageTerms',],
   ['XMP-xmpRights:WebStatement', 'schema:license',],
   ['Exif:Copyright',],
   ['Exif:DateTimeDigitized', 'Exif:CreateDate', 'schema:dateCreated',], // UTC
@@ -45,19 +47,20 @@ const synonyms = [
 
 /**
  * @param {string} field
+ * @param {*} value
  * @param {boolean} best
  * @return {string}
  */
-export function lookupQualifiedName(field, best = true) {
+export function lookupQualifiedName(field, value = null, best = true) {
   let result = null
   synonyms.flat(2).forEach((synonym) => {
     if (!result) {
       if (synonym.toLowerCase() === field.toLowerCase()) {
-        result = best ? _best(synonym): synonym
+        result = best ? _best(synonym, value): synonym
       } else {
         const parts = synonym.split(':')
         if (parts.length === 2 && parts[1].toLowerCase() === field.toLowerCase()) {
-          result = best ? _best(synonym): synonym
+          result = best || _.isObjectLike(value) ? _best(synonym, value): synonym
         }
       }
     }
@@ -82,15 +85,36 @@ export function lookupSynonyms(qualifiedName) {
 /**
  * @param {object} object
  * @param {string} field
- * @param {string} value
+ * @param {*} value
+ * @param {boolean} overwriteSynonyms
  */
-export function updateObjectFieldWithAllSynonyms(object, field, value) {
-  const qualifiedName = lookupQualifiedName(field, false)
+export function updateObjectFieldWithAllSynonyms(object, field, value, overwriteSynonyms = true) {
+  const qualifiedName = lookupQualifiedName(field, value, false)
   if (qualifiedName) {
     const synonyms = lookupSynonyms(qualifiedName)
-    synonyms.forEach((synonym) => {
-      object[synonym] = value
-    })
+    if (!value) {
+      synonyms.forEach((synonym) => {
+        if (qualifiedName === synonym || overwriteSynonyms) {
+          delete object[synonym]
+        }
+      })
+    } else {
+      if (_.intersection(
+          synonyms,
+          ['XMP-dc:Contributor', 'XMP-dc:Creator', 'XMP-dc:Publisher', 'XMP-xmpRights:Owner']).length > 0) {
+        _specialUpdateStructScalar(object, qualifiedName, value, overwriteSynonyms)
+      } else {
+        synonyms.forEach((synonym) => {
+          if (qualifiedName === synonym || overwriteSynonyms) {
+            object[synonym] = value
+          } else if (object[synonym] === undefined) {
+            object[synonym] = value
+          } else {
+            // Do nothing
+          }
+        })
+      }
+    }
   }
 }
 
@@ -99,7 +123,7 @@ export function updateObjectFieldWithAllSynonyms(object, field, value) {
  * @param {string} field
  */
 export function deleteObjectFieldWithAllSynonyms(object, field) {
-  const qualifiedName = lookupQualifiedName(field, false)
+  const qualifiedName = lookupQualifiedName(field, null, false)
   if (qualifiedName) {
     const synonyms = lookupSynonyms(qualifiedName)
     synonyms.forEach((synonym) => {
@@ -108,10 +132,119 @@ export function deleteObjectFieldWithAllSynonyms(object, field) {
   }
 }
 
-const _best = (qualifiedKey) => {
+const _best = (qualifiedKey, value) => {
   for (const synonymList of synonyms) {
     if (synonymList.includes(qualifiedKey)) {
-      return synonymList[0]
+      if (!value) {
+        return synonymList[0]
+      } else if (_.isString(value)) {
+        return synonymList[0]
+      } else if (_.isObjectLike(value)) {
+        let bestMatch = synonymList[0]
+        for (const synonym of synonymList) {
+          if (synonym.startsWith('schema:')) {
+            bestMatch = synonym
+            break
+          }
+        }
+        return bestMatch
+      } else {
+        return synonymList[0]
+      }
+    }
+  }
+}
+
+/**
+ * @param {object} object
+ * @param {string} qualifiedKeyName
+ * @param {*} value
+ * @param {boolean} overwriteSynonyms
+ * @private
+ */
+function _specialUpdateStructScalar(object, qualifiedKeyName, value, overwriteSynonyms) {
+  const isStruct = ['schema:contributor', 'schema:copyrightHolder', 'schema:publisher']
+      .includes(qualifiedKeyName)
+  const isShort = qualifiedKeyName === 'Exif:Artist'
+  let scalarVal
+  let shortVal
+  let structVal
+  if (_.isString(value)) {
+    scalarVal = value
+    structVal = []
+    value.split(',').forEach((name) => {
+      structVal.push({
+        '@type': 'Person', // Assume person...
+        'name': name.trim(),
+      })
+    })
+    shortVal = structVal[0]
+  } else if (_.isArray(value) && value.length > 0) {
+    const isArrayOfObjects = _.isObjectLike(value[0])
+    if (isArrayOfObjects) {
+      // Assume schema.org format
+      structVal = value
+      scalarVal = value.map((obj) => obj.name).join(', ')
+      shortVal = structVal[0].name
+    } else {
+      structVal = []
+      value.forEach((name) => {
+        structVal.push({
+          '@type': 'Person', // Assume person...
+          'name': name.trim(),
+        })
+      })
+      scalarVal = value.join(', ')
+      shortVal = structVal[0]
+    }
+  } else if (_.isObjectLike(value)) {
+    // Assume schema.org format
+    structVal = shortVal = value
+    scalarVal = value.name
+  } else {
+    // Unrecognized value, skip
+  }
+
+  if (scalarVal && structVal || scalarVal && structVal && shortVal) {
+    if (structVal.length === 1) {
+      structVal = structVal[0]
+    }
+
+    const synonyms = lookupSynonyms(qualifiedKeyName)
+    if (synonyms.includes('XMP-dc:Creator')) {
+      if (overwriteSynonyms) {
+        object['XMP-dc:Creator'] = scalarVal
+        object['schema:creator'] = structVal
+        object['Exif:Artist'] = shortVal
+      } else {
+        object['XMP-dc:Creator'] = object['XMP-dc:Creator'] ?? scalarVal
+        object['schema:creator'] = object['schema:creator'] ?? structVal
+        object['Exif:Artist'] = object['Exif:Artist'] ?? shortVal
+      }
+    } else if (synonyms.includes('XMP-dc:Contributor')) {
+      if (overwriteSynonyms) {
+        object['XMP-dc:Contributor'] = scalarVal
+        object['schema:contributor'] = structVal
+      } else {
+        object['XMP-dc:Contributor'] = object['XMP-dc:Contributor'] ?? scalarVal
+        object['schema:contributor'] = object['schema:contributor'] ?? structVal
+      }
+    } else if (synonyms.includes('XMP-dc:Publisher')) {
+      if (overwriteSynonyms) {
+        object['XMP-dc:Publisher'] = scalarVal
+        object['schema:publisher'] = structVal
+      } else {
+        object['XMP-dc:Publisher'] = object['XMP-dc:Publisher'] ?? scalarVal
+        object['schema:publisher'] = object['schema:publisher'] ?? structVal
+      }
+    } else if (synonyms.includes('XMP-xmpRights:Owner')) {
+      if (overwriteSynonyms) {
+        object['XMP-xmpRights:Owner'] = scalarVal
+        object['schema:copyrightHolder'] = structVal
+      } else {
+        object['XMP-xmpRights:Owner'] = object['XMP-xmpRights:Owner'] ?? scalarVal
+        object['schema:copyrightHolder'] = object['schema:copyrightHolder'] ?? structVal
+      }
     }
   }
 }
