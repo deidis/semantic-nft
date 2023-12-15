@@ -60,18 +60,45 @@ export async function ingest(metadata) {
               'value': createHash('sha256').update(fs.readFileSync(previewAbsolutePath)).digest('hex')
             }
           })
-          console.log(`Ingested metadata into ${previewAbsolutePath}`)
 
           // We will not need the preview file metadata, as it's all about the artwork anyways,
           // so now we can clean up as the ingestion is finished
           delete metadata[`file://${previewAbsolutePath}`]
+
+          console.log(`Ingested metadata into ${previewAbsolutePath}`)
         })
       }).catch((err) => {
         console.error(`ERROR: Failed to ingest metadata into ${previewAbsolutePath}: ${err}`)
       }))
     }
   })
-  return Promise.all(ingestingPromises)
+
+  return Promise.all(ingestingPromises).then(() => {
+    // Get rid of empty fields as they are just noise
+    Object.keys(metadata).forEach((key) => {
+      const value = metadata[key]
+      if (_isObject(value) && Object.keys(value).length === 0) {
+        delete metadata[key]
+      } else if (Array.isArray(value) && value.length === 0) {
+        delete metadata[key]
+      } else if (typeof value === 'string' && value.trim().length === 0) {
+        delete metadata[key]
+      }
+    })
+
+    // Now let's add all global metadata into every artwork, as that is actually the source of truth
+    artworkURIs().forEach((artworkURI) => {
+      // License and certificate are handled separately, everything else is not so special
+      const commonOverwritable = _.cloneDeep(commonMetadata)
+      _.merge(commonOverwritable, metadata[artworkURI])
+      _.merge(metadata[artworkURI], commonOverwritable)
+    })
+
+    // Get rid of the common metadata, as it's not needed anymore
+    _.difference(Object.keys(metadata), artworkURIs()).forEach((key) => {
+      delete metadata[key]
+    })
+  })
 }
 
 /**

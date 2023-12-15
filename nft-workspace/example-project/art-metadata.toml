@@ -39,7 +39,7 @@ certificate="portrait/certificate.pdf"
 # When the artwork doesn't have special characters in the name, we can even ommit the quotes,
 # in this case it will pick-up the file ./square/artwork.jpg
 [square]
-title = "Name of the portrait photo"
+title = "Name of the square photo"
 # This path is outside of the working folder context, so it will not be taken into generation, but will be kept as is
 certificate={"../square-certificate.pdf" = {Author = 'Name Surname', creator = 'Creator Name'}}
 
