@@ -1,6 +1,6 @@
 import path from 'path'
 import {prepareMetadata, clean, artworkPaths, ingest} from '../src/metadata.js'
-import {prepareArtworks} from '../src/artwork.js'
+import {prepareArtworks, tokenize} from '../src/artwork.js'
 import {collectFiles} from '../src/collectFiles.js'
 import {checkCertificates} from '../src/certificate.js'
 import {exiftool} from 'exiftool-vendored'
@@ -39,6 +39,9 @@ try {
 
   console.log('Checking certificates of authenticity...')
   checkCertificates(metadata)
+
+  console.log('Preparing NFTs...')
+  tokenize(Object.values(workingFiles), metadata)
   // console.log(JSON.stringify(metadata, null, 2))
 } catch (err) {
   // console.error('ERROR:', err.message)

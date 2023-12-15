@@ -3,6 +3,7 @@ import path from 'path'
 import sharp from 'sharp'
 import {enrichSchemaAssociatedMedia, artworkPreviewFileExtension, artworkURIs} from './metadata.js'
 import {createHash} from 'node:crypto'
+import web3 from 'web3'
 
 export const ARTWORK_FILE_NAME_WITHOUT_EXT = 'artwork'
 export const ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT = 'preview'
@@ -83,6 +84,13 @@ export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMeta
         ...previewImageTitle,
         ...preparedMetadata[`file://${absolutePreviewWorkingPath}`] // Keep any prescribed metadata
       }
+
+      // We don't need all the metadata from the artwork on the preview, so we can clean it up
+      Object.keys(preparedMetadata[`file://${absolutePreviewWorkingPath}`]).forEach((key) => {
+        if (key.startsWith('schema:') || key.startsWith('@') || key.startsWith('nft:')) {
+          delete preparedMetadata[`file://${absolutePreviewWorkingPath}`][key]
+        }
+      })
 
       // Improve schema
       enrichSchemaAssociatedMedia(preparedMetadata[artworkURI], {
@@ -219,6 +227,38 @@ function _validateCorrectnessAndGenerateInfoPage(metadata) {
   // TODO: validate metadata and generate info page
   // TODO: generate UDA.zip or EDA.png
   artworkURIs(metadata).forEach((artworkURI) => {
-    // const id = metadata[artworkURI]['XMP-dc:identifier']
+    // We expect: urn:<blockchain>:<collectionid>:<tokenid>
+    const id = metadata[artworkURI]['@id']
+    const idSplits = id.split(':')
+    if (idSplits.length !== 4) {
+      throw Error(`Invalid identifier: ${id}`)
+    }
+    idSplits.forEach((part, index) => {
+      if (part.length === 0) {
+        throw Error(`Invalid identifier: ${id}`)
+      }
+      switch (index) {
+        case 0:
+          if (part !== 'urn') {
+            throw Error(`Invalid identifier: ${id}`)
+          }
+          break
+        case 1:
+          if (part !== 'ethereum') {
+            throw Error(`Invalid identifier: ${id}`)
+          }
+          break
+        case 2:
+          if (web3.utils.isAddress(part)) {
+            throw Error(`Invalid identifier: ${id}`)
+          }
+          break
+        case 3:
+          if (isNaN(part)) {
+            throw Error(`Invalid identifier: ${id}`)
+          }
+          break
+      }
+    })
   })
 }

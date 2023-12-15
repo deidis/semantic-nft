@@ -61,6 +61,10 @@ export async function ingest(metadata) {
             }
           })
           console.log(`Ingested metadata into ${previewAbsolutePath}`)
+
+          // We will not need the preview file metadata, as it's all about the artwork anyways,
+          // so now we can clean up as the ingestion is finished
+          delete metadata[`file://${previewAbsolutePath}`]
         })
       }).catch((err) => {
         console.error(`ERROR: Failed to ingest metadata into ${previewAbsolutePath}: ${err}`)
@@ -110,13 +114,11 @@ function _ingestMetadataForSpecificArtwork(artworkPathOrUri, tags) {
 
   // Only keep the metadata that makes sense for exiftool
   Object.keys(tagsAdjusted).forEach((key) => {
-    if ((key.startsWith('schema:')) || (key.startsWith('nft:'))) {
+    if (key.startsWith('schema:') || key.startsWith('@') || key.startsWith('nft:')) {
       // Schema.org fields or nft specific fields are not intended for exiftool
       delete tagsAdjusted[key]
     }
   })
-
-  // TODO: lowercase the XMP-dc:identifier
 
   return exiftool.write(artworkPath, tagsAdjusted, ['-xmptoolkit=', '-overwrite_original'])
 }
@@ -367,8 +369,8 @@ function _successfulCatch(err) {
 function _normalizeFieldNames(metadata) {
   // console.log(metadata)
   // TODO: recognize the keys in metadata and convert them into tags
-  // TODO: merge global values into local for every artwork
   // TODO: add @context, @type (though this one should normally be specified in the .toml), @id
+  // TODO: XMP-dc:identifier == @id to lowercase except the <collection> part
 
   // Normalize the "certificate"
   Object.keys(metadata).filter((key) => {
