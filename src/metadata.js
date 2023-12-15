@@ -393,13 +393,18 @@ function _normalizeFields(metadata) {
     const betterKey = lookupQualifiedName(key)
     if (betterKey && thisKey) {
       if (betterKey !== thisKey) {
-        metadata[betterKey] = metadata[key]
+        metadata[betterKey] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
         delete metadata[key]
+        key = betterKey
       } else if (thisKey !== key) {
-        metadata[thisKey] = metadata[key]
+        metadata[thisKey] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
         delete metadata[key]
+        key = thisKey
+      } else {
+        metadata[key] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
       }
     }
+    updateObjectFieldWithAllSynonyms(metadata, key, metadata[key])
   })
   artworkURIs(metadata).forEach((artworkURI) => {
     Object.keys(metadata[artworkURI]).forEach((key) => {
@@ -407,17 +412,57 @@ function _normalizeFields(metadata) {
       const betterKey = lookupQualifiedName(key)
       if (betterKey && thisKey) {
         if (betterKey !== thisKey) {
-          metadata[artworkURI][betterKey] = metadata[artworkURI][key]
+          metadata[artworkURI][betterKey] = _.isString(metadata[artworkURI][key]) ?
+              metadata[artworkURI][key].trim() : metadata[artworkURI][key]
           delete metadata[artworkURI][key]
+          key = betterKey
         } else if (thisKey !== key) {
-          metadata[artworkURI][thisKey] = metadata[artworkURI][key]
+          metadata[artworkURI][thisKey] = _.isString(metadata[artworkURI][key]) ?
+              metadata[artworkURI][key].trim() : metadata[artworkURI][key]
           delete metadata[artworkURI][key]
+          key = thisKey
+        } else {
+          metadata[artworkURI][key] = _.isString(metadata[artworkURI][key]) ?
+              metadata[artworkURI][key].trim() : metadata[artworkURI][key]
+        }
+      }
+
+      if (key === 'XMP-dc:Identifier') {
+        // We expect: urn:<blockchain>:<collectionid>:<tokenid>
+        const keyParts = metadata[artworkURI][key].split(':')
+        if (keyParts.length === 4) {
+          metadata[artworkURI][key] = keyParts.map((part, index) => {
+            return index === 2 ? part : part.toLowerCase()
+          }).join(':')
+        }
+      }
+
+      updateObjectFieldWithAllSynonyms(metadata[artworkURI], key, metadata[artworkURI][key])
+    })
+  })
+
+  _.difference(Object.keys(metadata), artworkURIs(metadata)).forEach((nonArtworkFileUriProbablyPreview) => {
+    Object.keys(metadata[nonArtworkFileUriProbablyPreview]).forEach((key) => {
+      const thisKey = lookupQualifiedName(key, false)
+      const betterKey = lookupQualifiedName(key)
+      if (betterKey && thisKey) {
+        if (betterKey !== thisKey) {
+          metadata[nonArtworkFileUriProbablyPreview][betterKey] =
+              _.isString(metadata[nonArtworkFileUriProbablyPreview][key]) ?
+              metadata[nonArtworkFileUriProbablyPreview][key].trim() : metadata[nonArtworkFileUriProbablyPreview][key]
+          delete metadata[nonArtworkFileUriProbablyPreview][key]
+        } else if (thisKey !== key) {
+          metadata[nonArtworkFileUriProbablyPreview][thisKey] =
+              _.isString(metadata[nonArtworkFileUriProbablyPreview][key]) ?
+                  metadata[nonArtworkFileUriProbablyPreview][key].trim() : metadata[nonArtworkFileUriProbablyPreview][key]
+          delete metadata[nonArtworkFileUriProbablyPreview][key]
+        } else {
+          metadata[nonArtworkFileUriProbablyPreview][key] = _.isString(metadata[nonArtworkFileUriProbablyPreview][key]) ?
+              metadata[nonArtworkFileUriProbablyPreview][key].trim() : metadata[nonArtworkFileUriProbablyPreview][key]
         }
       }
     })
   })
-  // TODO: add @context, @type (though this one should normally be specified in the .toml), @id
-  // TODO: XMP-dc:identifier == @id to lowercase except the <collection> part
 
   // TODO: (phase 2) resolve the variables
 }

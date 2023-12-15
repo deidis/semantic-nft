@@ -1,7 +1,7 @@
 # XMP-dc:Description. Will be set for all the artworks mentioned in this file
-description='''
+description="""
 The description. It's the same for all the photos mentioned
-'''
+"""
 
 # After we processed the global tags, we will clear all other semantic tags that we support
 # However the user can clear additional tags if needed. For example:

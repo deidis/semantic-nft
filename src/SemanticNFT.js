@@ -2,6 +2,7 @@ import _ from 'lodash'
 import path from 'path'
 import {createHash} from 'node:crypto'
 import fs from 'fs'
+import web3 from 'web3'
 
 /**
  * @class SemanticNFT
