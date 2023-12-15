@@ -31,17 +31,16 @@ try {
   })
 
   console.log('Preparing working files (without overwriting)...')
-  const workingFiles = await prepareArtworks(originalArtworkPaths, metadata, false)
-
-  console.log('Ingesting metadata (overwriting)...')
-  await clean(Object.values(workingFiles))
-  await ingest()
-
+  await prepareArtworks(originalArtworkPaths, metadata, false)
   console.log('Checking certificates of authenticity...')
   checkCertificates(metadata)
 
+  console.log('Ingesting metadata (overwriting)...')
+  await clean(artworkPaths())
+  await ingest()
+
   console.log('Preparing NFTs...')
-  tokenize(Object.values(workingFiles), metadata)
+  tokenize(artworkPaths(), metadata)
   // console.log(JSON.stringify(metadata, null, 2))
 } catch (err) {
   // console.error('ERROR:', err.message)

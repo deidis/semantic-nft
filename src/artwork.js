@@ -4,6 +4,7 @@ import sharp from 'sharp'
 import {enrichSchemaAssociatedMedia, artworkPreviewFileExtension, artworkURIs} from './metadata.js'
 import {createHash} from 'node:crypto'
 import web3 from 'web3'
+import {fileUriToIpfsUri} from './ipfs.js'
 
 export const ARTWORK_FILE_NAME_WITHOUT_EXT = 'artwork'
 export const ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT = 'preview'
@@ -13,10 +14,9 @@ export const ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT = 'preview'
  * @param {string[]} originalArtworkAbsolutePaths - Absolute paths to original artwork files
  * @param {object | undefined | null} preparedMetadata - Metadata from the TOML file, if needs fixing
  * @param {boolean} overwrite - Whether to overwrite existing files
- * @return {Promise<{string: string}>} - Map of original artwork file to working file
+ * @return {Promise<void>}
  */
 export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMetadata, overwrite = true) {
-  const result = {}
   originalArtworkAbsolutePaths.forEach((originalArtworkAbsolutePath) => {
     const dir = path.dirname(originalArtworkAbsolutePath)
     const ext = path.extname(originalArtworkAbsolutePath)
@@ -35,9 +35,6 @@ export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMeta
     } else {
       fs.copyFileSync(originalArtworkAbsolutePath, workingArtworkAbsolutePath)
     }
-
-    // Point to working file
-    result[originalArtworkAbsolutePath] = workingArtworkAbsolutePath
 
     const artworkURI = `file://${workingArtworkAbsolutePath}`
 
@@ -109,14 +106,14 @@ export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMeta
 
   return Promise.all(previewPromises).then(() => {
     _copyLicensesToWorkingDir(preparedMetadata, overwrite)
-    artworkURIs(preparedMetadata).forEach((artworkURI) => {
+    return Promise.all(artworkURIs(preparedMetadata).map( async (artworkURI) => {
       const licenseUri = preparedMetadata[artworkURI]['XMP-xmpRights:WebStatement']
       if (licenseUri.startsWith('file://')) {
         // Improve schema
         enrichSchemaAssociatedMedia(preparedMetadata[artworkURI], {
           '@type': path.extname(licenseUri).toLowerCase() === '.txt' ? 'TextObject' : 'MediaObject',
           'identifier': path.basename(licenseUri),
-          'contentUrl': licenseUri,
+          'contentUrl': await fileUriToIpfsUri(licenseUri),
           'additionalProperty': {
             '@type': 'PropertyValue',
             'name': 'sha256',
@@ -124,8 +121,7 @@ export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMeta
           }
         })
       }
-    })
-    return result
+    }))
   })
 }
 
@@ -215,6 +211,8 @@ function _copyLicensesToWorkingDir(metadata, overwrite = true) {
 export function tokenize(workingArtworkAbsolutePaths, metadata) {
   workingArtworkAbsolutePaths.forEach(() => {
     _validateCorrectnessAndGenerateInfoPage(metadata)
+    // TODO: generate EDA.png if it's "unlockable content"
+
     // TODO: generate token nft.json
   })
 }
@@ -224,8 +222,6 @@ export function tokenize(workingArtworkAbsolutePaths, metadata) {
  * @private
  */
 function _validateCorrectnessAndGenerateInfoPage(metadata) {
-  // TODO: validate metadata and generate info page
-  // TODO: generate UDA.zip or EDA.png
   artworkURIs(metadata).forEach((artworkURI) => {
     // We expect: urn:<blockchain>:<collectionid>:<tokenid>
     const id = metadata[artworkURI]['@id']
@@ -260,5 +256,7 @@ function _validateCorrectnessAndGenerateInfoPage(metadata) {
           break
       }
     })
+
+    // TODO: (phase 2?) generate info page
   })
 }

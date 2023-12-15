@@ -17,7 +17,7 @@ export async function prepareCertificates(preparedMetadata) {
   artworkURIs(preparedMetadata).forEach((artworkUri) => {
     promises.push(
         (new CertificateOfAuthenticity(artworkUri, preparedMetadata)).build().then((absoluteCertificatePath) => {
-          if (absoluteCertificatePath) {
+          if (absoluteCertificatePath && isSigned(absoluteCertificatePath)) {
             enrichSchemaAssociatedMedia(preparedMetadata[artworkUri], {
               '@type': 'MediaObject',
               'identifier': path.basename(absoluteCertificatePath),
@@ -32,8 +32,6 @@ export async function prepareCertificates(preparedMetadata) {
         })
     )
   })
-  // The metadata to adjust:
-  // - checksum of the artwork
 
   return Promise.all(promises)
 }
@@ -82,7 +80,7 @@ export function checkCertificates(preparedMetadata, quiet = false) {
         })
       }
 
-      // TODO: for extra caution we might want to check if the artwork checksum and other info is mentioned (content valid?)
+      // TODO: (phase 2) for extra caution we might want to check if content valid
     }
   })
 
@@ -90,12 +88,13 @@ export function checkCertificates(preparedMetadata, quiet = false) {
 }
 
 /**
- * @param {string} absoluteFilePath
+ * @param {string} absoluteFilePathOrUri
  * @return {boolean}
  */
-export function isSigned(absoluteFilePath) {
+export function isSigned(absoluteFilePathOrUri) {
+  absoluteFilePathOrUri = absoluteFilePathOrUri.replace('file://', '')
   try {
-    extractSignature(fs.readFileSync(absoluteFilePath))
+    extractSignature(fs.readFileSync(absoluteFilePathOrUri))
     return true
   } catch (e) {
     return false

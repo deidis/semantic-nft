@@ -5,11 +5,12 @@ import {
 import {filesFromPaths} from 'files-from-path'
 
 /**
- * @param {string} absoluteFilePath
+ * @param {string} absoluteFilePathOrUri
  * @return {Promise<string>} - CID which is actually the last block CID, aka root CID
  */
-export async function calculateCID(absoluteFilePath) {
-  const files = await filesFromPaths([absoluteFilePath])
+export async function calculateCID(absoluteFilePathOrUri) {
+  absoluteFilePathOrUri = absoluteFilePathOrUri.replace('file://', '')
+  const files = await filesFromPaths([absoluteFilePathOrUri])
   let rootCID
   await createFileEncoderStream(files[0])
       .pipeThrough(new TransformStream({
@@ -23,4 +24,13 @@ export async function calculateCID(absoluteFilePath) {
       .pipeTo(new WritableStream())
 
   return rootCID.toString()
+}
+
+/**
+ * @param {string} fileUri
+ * @return {Promise<string>}
+ */
+export async function fileUriToIpfsUri(fileUri) {
+  const cid = await calculateCID(fileUri)
+  return `ipfs://${cid}`
 }

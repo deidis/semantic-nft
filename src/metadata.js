@@ -7,9 +7,10 @@ import {
   ARTWORK_FILE_NAME_WITHOUT_EXT,
   ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT,
 } from './artwork.js'
-import {CERTIFICATE_FILE_NAME_WITHOUT_EXT, CERTIFICATE_SUPPORTED_INFO_TAGS} from './certificate.js'
+import {CERTIFICATE_FILE_NAME_WITHOUT_EXT, CERTIFICATE_SUPPORTED_INFO_TAGS, isSigned} from './certificate.js'
 import {createHash} from 'node:crypto'
 import _ from 'lodash'
+import {fileUriToIpfsUri} from './ipfs.js'
 
 const __METADATA_CACHE = {}
 const __CACHE_KEY = (tomlFileAbsolutePaths) => {
@@ -130,13 +131,27 @@ export function clean(absoluteFilePaths, overwrite = true) {
  * @return {Promise<void>}
  * @private
  */
-function _ingestMetadataForSpecificArtwork(artworkPathOrUri, tags) {
+async function _ingestMetadataForSpecificArtwork(artworkPathOrUri, tags) {
   const artworkPath = artworkPathOrUri.replace('file://', '')
   const tagsAdjusted = {...tags}
 
   // Flatten the certificate information for exiftool
   if (_isObject(tagsAdjusted['XMP-xmpRights:Certificate'])) {
     tagsAdjusted['XMP-xmpRights:Certificate'] = Object.keys(tagsAdjusted['XMP-xmpRights:Certificate'])[0]
+  }
+
+  // Maybe we haven't uploaded certificate nor license yet, but we will want to reference to them via IPFS
+  if (tagsAdjusted['XMP-xmpRights:WebStatement']) {
+    tagsAdjusted['XMP-xmpRights:WebStatement'] = await fileUriToIpfsUri(tagsAdjusted['XMP-xmpRights:WebStatement'])
+  }
+  if (tagsAdjusted['XMP-xmpRights:Certificate']) {
+    if (isSigned(tagsAdjusted['XMP-xmpRights:Certificate'])) {
+      tagsAdjusted['XMP-xmpRights:Certificate'] = await fileUriToIpfsUri(tagsAdjusted['XMP-xmpRights:Certificate'])
+    } else {
+      // Well... the certificate is useless, as it's not signed.
+      // It must be added to metadata afterward, when it's signed.
+      delete tagsAdjusted['XMP-xmpRights:Certificate']
+    }
   }
 
   // Only keep the metadata that makes sense for exiftool
@@ -147,7 +162,7 @@ function _ingestMetadataForSpecificArtwork(artworkPathOrUri, tags) {
     }
   })
 
-  return exiftool.write(artworkPath, tagsAdjusted, ['-xmptoolkit=', '-overwrite_original'])
+  await exiftool.write(artworkPath, tagsAdjusted, ['-xmptoolkit=', '-overwrite_original'])
 }
 
 /**
@@ -431,7 +446,23 @@ function _normalizeFieldNames(metadata) {
     })
   })
 
-  // TODO: resolve the variables
+  // Normalize the "creator"
+  Object.keys(metadata).filter((key) => {
+    return key.toLowerCase() === 'creator' || key.toLowerCase() === 'xmp-dc:creator'
+  }).forEach((key) => {
+    metadata['XMP-dc:Creator'] = metadata[key]
+    delete metadata[key]
+  })
+  artworkURIs(metadata).forEach((artworkURI) => {
+    Object.keys(metadata[artworkURI]).filter((key) => {
+      return key.toLowerCase() === 'creator' || key.toLowerCase() === 'xmp-dc:creator'
+    }).forEach((key) => {
+      metadata[artworkURI]['XMP-dc:Creator'] = metadata[artworkURI][key]
+      delete metadata[artworkURI][key]
+    })
+  })
+
+  // TODO: (phase 2) resolve the variables
 }
 
 /**

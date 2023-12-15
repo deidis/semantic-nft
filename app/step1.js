@@ -31,17 +31,18 @@ try {
   })
 
   console.log('Preparing working files...')
-  const workingFiles = await prepareArtworks(originalArtworkPaths, metadata)
-
-  console.log('Ingesting metadata...')
-  await clean(Object.values(workingFiles))
-  await ingest()
-
-  // TODO: collect all files that were prescribed in schema:associatedMedia
-
+  await prepareArtworks(originalArtworkPaths, metadata)
   console.log('Prepare certificates of authenticity...')
   await prepareCertificates(metadata)
+
+  // Now we have all the files ready, so the metadata is also ready
+  console.log('Ingesting metadata...')
+  await clean(artworkPaths())
+  await ingest()
+
   console.log(JSON.stringify(metadata, null, 2))
+
+  // TODO: collect all files that were prescribed in schema:associatedMedia
 } catch (err) {
   // console.error('ERROR:', err.message)
   console.error(err)
