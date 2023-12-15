@@ -11,6 +11,7 @@ import {CERTIFICATE_FILE_NAME_WITHOUT_EXT, CERTIFICATE_SUPPORTED_INFO_TAGS, isSi
 import {createHash} from 'node:crypto'
 import _ from 'lodash'
 import {fileUriToIpfsUri} from './ipfs.js'
+import {deleteObjectFieldWithAllSynonyms, lookupQualifiedName, updateObjectFieldWithAllSynonyms} from './vocabulary.js'
 
 const __METADATA_CACHE = {}
 const __CACHE_KEY = (tomlFileAbsolutePaths) => {
@@ -224,7 +225,7 @@ export function prepareMetadata(tomlFileAbsolutePaths) {
   })
 
   // The order of calling these functions is important here!
-  _normalizeFieldNames(result)
+  _normalizeFields(result)
   _prepareMetadataOfLicenses(result)
   _prepareMetadataOfCertificates(result)
 
@@ -408,59 +409,37 @@ function _successfulCatch(err) {
  * @param {Object} metadata
  * @private
  */
-function _normalizeFieldNames(metadata) {
-  // console.log(metadata)
-  // TODO: recognize the keys in metadata and convert them into tags
+function _normalizeFields(metadata) {
+  Object.keys(metadata).forEach((key) => {
+    const thisKey = lookupQualifiedName(key, false)
+    const betterKey = lookupQualifiedName(key)
+    if (betterKey && thisKey) {
+      if (betterKey !== thisKey) {
+        metadata[betterKey] = metadata[key]
+        delete metadata[key]
+      } else if (thisKey !== key) {
+        metadata[thisKey] = metadata[key]
+        delete metadata[key]
+      }
+    }
+  })
+  artworkURIs(metadata).forEach((artworkURI) => {
+    Object.keys(metadata[artworkURI]).forEach((key) => {
+      const thisKey = lookupQualifiedName(key, false)
+      const betterKey = lookupQualifiedName(key)
+      if (betterKey && thisKey) {
+        if (betterKey !== thisKey) {
+          metadata[artworkURI][betterKey] = metadata[artworkURI][key]
+          delete metadata[artworkURI][key]
+        } else if (thisKey !== key) {
+          metadata[artworkURI][thisKey] = metadata[artworkURI][key]
+          delete metadata[artworkURI][key]
+        }
+      }
+    })
+  })
   // TODO: add @context, @type (though this one should normally be specified in the .toml), @id
   // TODO: XMP-dc:identifier == @id to lowercase except the <collection> part
-
-  // Normalize the "certificate"
-  Object.keys(metadata).filter((key) => {
-    return key.toLowerCase() === 'certificate' || key.toLowerCase() === 'xmp-xmprights:certificate'
-  }).forEach((key) => {
-    metadata['XMP-xmpRights:Certificate'] = metadata[key]
-    delete metadata[key]
-  })
-  artworkURIs(metadata).forEach((artworkURI) => {
-    Object.keys(metadata[artworkURI]).filter((key) => {
-      return key.toLowerCase() === 'certificate' || key.toLowerCase() === 'xmp-xmprights:certificate'
-    }).forEach((key) => {
-      metadata[artworkURI]['XMP-xmpRights:Certificate'] = metadata[artworkURI][key]
-      delete metadata[artworkURI][key]
-    })
-  })
-
-  // Normalize the "license"
-  Object.keys(metadata).filter((key) => {
-    return key.toLowerCase() === 'license' || key.toLowerCase() === 'xmp-xmprights:webstatement'
-  }).forEach((key) => {
-    metadata['XMP-xmpRights:WebStatement'] = metadata[key]
-    delete metadata[key]
-  })
-  artworkURIs(metadata).forEach((artworkURI) => {
-    Object.keys(metadata[artworkURI]).filter((key) => {
-      return key.toLowerCase() === 'license' || key.toLowerCase() === 'xmp-xmprights:webstatement'
-    }).forEach((key) => {
-      metadata[artworkURI]['XMP-xmpRights:WebStatement'] = metadata[artworkURI][key]
-      delete metadata[artworkURI][key]
-    })
-  })
-
-  // Normalize the "creator"
-  Object.keys(metadata).filter((key) => {
-    return key.toLowerCase() === 'creator' || key.toLowerCase() === 'xmp-dc:creator'
-  }).forEach((key) => {
-    metadata['XMP-dc:Creator'] = metadata[key]
-    delete metadata[key]
-  })
-  artworkURIs(metadata).forEach((artworkURI) => {
-    Object.keys(metadata[artworkURI]).filter((key) => {
-      return key.toLowerCase() === 'creator' || key.toLowerCase() === 'xmp-dc:creator'
-    }).forEach((key) => {
-      metadata[artworkURI]['XMP-dc:Creator'] = metadata[artworkURI][key]
-      delete metadata[artworkURI][key]
-    })
-  })
 
   // TODO: (phase 2) resolve the variables
 }
@@ -476,11 +455,11 @@ function _prepareMetadataOfLicenses(metadata) {
     if (localLicense) {
       const absoluteFilePath = collectFiles(path.resolve(localLicense), 0, '*').pop()
       if (absoluteFilePath) {
-        metadata[artworkURI]['XMP-xmpRights:WebStatement'] = `file://${absoluteFilePath}`
+        updateObjectFieldWithAllSynonyms(metadata[artworkURI], 'XMP-xmpRights:WebStatement', `file://${absoluteFilePath}`)
       } else {
         if (!URL.canParse(localLicense)) {
           // Get rid of the invalid license
-          delete metadata[artworkURI]['XMP-xmpRights:WebStatement']
+          deleteObjectFieldWithAllSynonyms(metadata[artworkURI], 'XMP-xmpRights:WebStatement')
         } else {
           // Trust that it's a URL
         }
@@ -493,10 +472,10 @@ function _prepareMetadataOfLicenses(metadata) {
   if (globalLicense) {
     const absoluteFilePath = collectFiles(path.resolve(globalLicense), 0, '*').pop()
     if (absoluteFilePath) {
-      metadata['XMP-xmpRights:WebStatement'] = `file://${absoluteFilePath}`
+      updateObjectFieldWithAllSynonyms(metadata, 'XMP-xmpRights:WebStatement', `file://${absoluteFilePath}`)
       artworkURIs(metadata).forEach((artworkURI) => {
         if (!metadata[artworkURI]['XMP-xmpRights:WebStatement']) {
-          metadata[artworkURI]['XMP-xmpRights:WebStatement'] = `file://${absoluteFilePath}`
+          updateObjectFieldWithAllSynonyms(metadata[artworkURI], 'XMP-xmpRights:WebStatement', `file://${absoluteFilePath}`)
         }
       })
     } else {
@@ -506,7 +485,7 @@ function _prepareMetadataOfLicenses(metadata) {
         // Trust that it's a URL
         artworkURIs(metadata).forEach((artworkURI) => {
           if (!metadata[artworkURI]['XMP-xmpRights:WebStatement']) {
-            metadata[artworkURI]['XMP-xmpRights:WebStatement'] = globalLicense
+            updateObjectFieldWithAllSynonyms(metadata[artworkURI], 'XMP-xmpRights:WebStatement', globalLicense)
           }
         })
       }
@@ -539,9 +518,6 @@ function _prepareMetadataOfCertificates(metadata) {
     console.warn(`Falling back to the default certificate path: ${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`)
     globalCertificatePath = `./${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`
   }
-
-  // It's safe to clean it up from the metadata, as we have what we need from the global certificate info
-  delete metadata['XMP-xmpRights:Certificate']
 
   // Check the global certificate, and use it for artworks where certificate wasn't provided
 
@@ -867,6 +843,9 @@ function _prepareMetadataOfCertificates(metadata) {
       }
     })
   })
+
+  // It's safe to clean it up from the metadata, as we have what we need from the global certificate info
+  delete metadata['XMP-xmpRights:Certificate']
 }
 
 /**

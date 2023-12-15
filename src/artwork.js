@@ -5,6 +5,8 @@ import {enrichSchemaAssociatedMedia, artworkPreviewFileExtension, artworkURIs} f
 import {createHash} from 'node:crypto'
 import web3 from 'web3'
 import {fileUriToIpfsUri} from './ipfs.js'
+import SemanticNFT from './SemanticNFT.js'
+import {lookupSynonyms, updateObjectFieldWithAllSynonyms} from './vocabulary.js'
 
 export const ARTWORK_FILE_NAME_WITHOUT_EXT = 'artwork'
 export const ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT = 'preview'
@@ -65,16 +67,12 @@ export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMeta
               preparedMetadata[artworkURI]['Exif:ImageDescription']
 
       // Update the title on the preview image, so that it's clear that it's not the real artwork
-      const previewImageTitle = {}
-
-      // As we're updating the title here, do it in the normalized way
+      let previewImageTitleStr = 'Preview'
       if (artworkTitle && artworkTitle.length > 0) {
-        previewImageTitle['XMP-dc:Title'] =
-                previewImageTitle['Exif:ImageDescription'] = 'Preview of: ' + artworkTitle
-      } else {
-        previewImageTitle['XMP-dc:Title'] =
-                previewImageTitle['Exif:ImageDescription'] = 'Preview'
+        previewImageTitleStr = 'Preview of: ' + artworkTitle
       }
+      const previewImageTitle = {}
+      updateObjectFieldWithAllSynonyms(previewImageTitle, 'XMP-dc:Title', previewImageTitleStr)
 
       preparedMetadata[`file://${absolutePreviewWorkingPath}`] = {
         ...preparedMetadata[artworkURI],
@@ -106,6 +104,7 @@ export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMeta
 
   return Promise.all(previewPromises).then(() => {
     _copyLicensesToWorkingDir(preparedMetadata, overwrite)
+    _copyOtherAssociatedMediaToWorkingDir(preparedMetadata, overwrite)
     return Promise.all(artworkURIs(preparedMetadata).map( async (artworkURI) => {
       const licenseUri = preparedMetadata[artworkURI]['XMP-xmpRights:WebStatement']
       if (licenseUri.startsWith('file://')) {
@@ -193,7 +192,7 @@ function _copyLicensesToWorkingDir(metadata, overwrite = true) {
       }
 
       // Update the metadata to point to the working file
-      metadata[artworkURI]['XMP-xmpRights:WebStatement'] = `file://${licenseWorkingFilePath}`
+      updateObjectFieldWithAllSynonyms(metadata[artworkURI], 'XMP-xmpRights:WebStatement', `file://${licenseWorkingFilePath}`)
     } else {
       if (!licenseUri) {
         throw Error(`License is not defined for ${artworkURI}`)
@@ -203,60 +202,27 @@ function _copyLicensesToWorkingDir(metadata, overwrite = true) {
 }
 
 /**
- * Create UDA.zip or EDA.png along with nft.json
- *
- * @param {string[]} workingArtworkAbsolutePaths
+ * Copy all files that were provided in schema:associatedMedia to the working directory
  * @param {object} metadata
+ * @param {boolean} overwrite
+ * @private
  */
-export function tokenize(workingArtworkAbsolutePaths, metadata) {
-  workingArtworkAbsolutePaths.forEach(() => {
-    _validateCorrectnessAndGenerateInfoPage(metadata)
-    // TODO: generate EDA.png if it's "unlockable content"
-
-    // TODO: generate token nft.json
-  })
+function _copyOtherAssociatedMediaToWorkingDir(metadata, overwrite = true) {
+// TODO: (phase 2) collect all files that were prescribed in schema:associatedMedia and adjust the metadata accordingly
 }
+
 
 /**
  * @param {object} metadata
- * @private
  */
-function _validateCorrectnessAndGenerateInfoPage(metadata) {
-  artworkURIs(metadata).forEach((artworkURI) => {
-    // We expect: urn:<blockchain>:<collectionid>:<tokenid>
-    const id = metadata[artworkURI]['@id']
-    const idSplits = id.split(':')
-    if (idSplits.length !== 4) {
-      throw Error(`Invalid identifier: ${id}`)
-    }
-    idSplits.forEach((part, index) => {
-      if (part.length === 0) {
-        throw Error(`Invalid identifier: ${id}`)
-      }
-      switch (index) {
-        case 0:
-          if (part !== 'urn') {
-            throw Error(`Invalid identifier: ${id}`)
-          }
-          break
-        case 1:
-          if (part !== 'ethereum') {
-            throw Error(`Invalid identifier: ${id}`)
-          }
-          break
-        case 2:
-          if (web3.utils.isAddress(part)) {
-            throw Error(`Invalid identifier: ${id}`)
-          }
-          break
-        case 3:
-          if (isNaN(part)) {
-            throw Error(`Invalid identifier: ${id}`)
-          }
-          break
-      }
-    })
-
-    // TODO: (phase 2?) generate info page
+export function tokenize(metadata) {
+  artworkURIs(metadata).forEach((artworkUri) => {
+    const previewExt = artworkPreviewFileExtension(artworkUri, metadata)
+    const artworkPreviewUri = path.dirname(artworkUri) +
+        path.sep +
+        ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT +
+        previewExt
+    const nft = (new SemanticNFT(artworkUri, metadata[artworkUri], artworkPreviewUri, false))
+    nft.build()
   })
 }

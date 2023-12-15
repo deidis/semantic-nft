@@ -6,7 +6,7 @@ import {exiftool} from 'exiftool-vendored'
 
 // Create and export a class that creates a PDF with pdfkit and is made for inheritance
 /**
- * @class PDF
+ * @class CertificateOfAuthenticity
  */
 export default class CertificateOfAuthenticity {
   #metadata = null
