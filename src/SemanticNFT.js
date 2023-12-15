@@ -1,4 +1,7 @@
 import _ from 'lodash'
+import path from 'path'
+import {createHash} from 'node:crypto'
+import fs from 'fs'
 
 /**
  * @class SemanticNFT
@@ -32,6 +35,8 @@ export default class SemanticNFT {
     this.#artworkMetadata = artworkRelatedMetadata
     this.#artworkUri = artworkWorkingFileUri
     this.#artworkPreviewUri = previewWorkingFileUri
+    this._collectAssociatedMedia()
+    // this._pointMediaToIpfs()
     if (validate) {
       this._validate()
     }
@@ -52,6 +57,94 @@ export default class SemanticNFT {
     //
     // })
     // console.log(newMetadata)
+  }
+
+  /**
+   * @method _collectAssociatedMedia
+   * @private
+   */
+  _collectAssociatedMedia() {
+    this._enrichSchemaAssociatedMedia(this.#artworkMetadata, {
+      '@type': 'ImageObject',
+      'identifier': path.basename(this.#artworkUri),
+      // TODO: we don't want to set the contentUrl if we do the "unlockable content" - we're not going to publish it
+      'contentUrl': this.#artworkUri,
+      'thumbnailUrl': this.#artworkPreviewUri,
+      'additionalProperty': {
+        '@type': 'PropertyValue',
+        'name': 'sha256',
+        'value': createHash('sha256').update(fs.readFileSync(this.#artworkUri.replace('file://', ''))).digest('hex')
+      }
+    })
+
+    this._enrichSchemaAssociatedMedia(this.#artworkMetadata, {
+      '@type': 'ImageObject',
+      'identifier': path.basename(this.#artworkPreviewUri),
+      'contentUrl': this.#artworkPreviewUri,
+      'additionalProperty': {
+        '@type': 'PropertyValue',
+        'name': 'sha256',
+        'value': createHash('sha256')
+            .update(fs.readFileSync(this.#artworkPreviewUri.replace('file://', ''))).digest('hex')
+      }
+    })
+
+    const licenseUri = this.#artworkMetadata['schema:license']
+    if (licenseUri) {
+      this._enrichSchemaAssociatedMedia(this.#artworkMetadata, {
+        '@type': path.extname(licenseUri).toLowerCase() === '.txt' ? 'TextObject' : 'MediaObject',
+        'identifier': path.basename(licenseUri),
+        'contentUrl': licenseUri,
+        'additionalProperty': {
+          '@type': 'PropertyValue',
+          'name': 'sha256',
+          'value': createHash('sha256')
+              .update(fs.readFileSync(licenseUri.replace('file://', ''))).digest('hex')
+        }
+      })
+    }
+
+    const certificateUri = this.#artworkMetadata['XMP-dc:Certificate']
+    if (certificateUri) {
+      this._enrichSchemaAssociatedMedia(this.#artworkMetadata, {
+        '@type': 'MediaObject',
+        'identifier': path.basename(certificateUri),
+        'contentUrl': certificateUri,
+        'additionalProperty': {
+          '@type': 'PropertyValue',
+          'name': 'sha256',
+          'value': createHash('sha256')
+              .update(fs.readFileSync(certificateUri.replace('file://', ''))).digest('hex')
+        },
+      })
+    }
+  }
+
+  /**
+   * @method _enrichSchemaAssociatedMedia
+   * @param {object} artworkMetadata
+   * @param {object} associatedMediaObjectMetadata
+   * @private
+   */
+  _enrichSchemaAssociatedMedia(artworkMetadata, associatedMediaObjectMetadata) {
+    artworkMetadata['schema:associatedMedia'] =
+        artworkMetadata['schema:associatedMedia'] === undefined ? [] : artworkMetadata['schema:associatedMedia']
+
+    if (_isObject(artworkMetadata['schema:associatedMedia'])) {
+      artworkMetadata['schema:associatedMedia'] = Object.values(artworkMetadata['schema:associatedMedia'])
+    }
+
+    let foundAt = -1
+    artworkMetadata['schema:associatedMedia'].forEach((obj, index) => {
+      if (obj['identifier'] === associatedMediaObjectMetadata['identifier']) {
+        foundAt = index
+      }
+    })
+    if (foundAt !== -1) {
+      _.merge(artworkMetadata['schema:associatedMedia'][foundAt], associatedMediaObjectMetadata)
+    } else {
+      artworkMetadata['schema:associatedMedia'].push(associatedMediaObjectMetadata)
+    }
   }
 
   /**
@@ -100,4 +193,14 @@ export default class SemanticNFT {
  */
 function _generateInfoDoc(metadata) {
   // TODO: implement generation of the informational doc
+}
+
+/**
+ * Check if the variable is an object
+ * @param {*} variable
+ * @return {boolean}
+ * @private
+ */
+function _isObject(variable) {
+  return typeof variable === 'object' && variable !== null && !Array.isArray(variable)
 }

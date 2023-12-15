@@ -8,7 +8,6 @@ import {
   ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT,
 } from './artwork.js'
 import {CERTIFICATE_FILE_NAME_WITHOUT_EXT, CERTIFICATE_SUPPORTED_INFO_TAGS, isSigned} from './certificate.js'
-import {createHash} from 'node:crypto'
 import _ from 'lodash'
 import {fileUriToIpfsUri} from './ipfs.js'
 import {deleteObjectFieldWithAllSynonyms, lookupQualifiedName, updateObjectFieldWithAllSynonyms} from './vocabulary.js'
@@ -37,14 +36,6 @@ export async function ingest(metadata) {
 
     ingestingPromises.push(_ingestMetadataForSpecificArtwork(artworkURI, commonMetadata).then(() => {
       return _ingestMetadataForSpecificArtwork(artworkURI, metadata[artworkURI]).then(() => {
-        enrichSchemaAssociatedMedia(metadata[artworkURI], {
-          'identifier': path.basename(artworkAbsolutePath),
-          'additionalProperty': {
-            '@type': 'PropertyValue',
-            'name': 'sha256',
-            'value': createHash('sha256').update(fs.readFileSync(artworkAbsolutePath)).digest('hex')
-          }
-        })
         console.log(`Ingested metadata into ${artworkAbsolutePath}`)
       })
     }).catch((err) => {
@@ -54,19 +45,6 @@ export async function ingest(metadata) {
     if (fs.existsSync(previewAbsolutePath)) {
       ingestingPromises.push(_ingestMetadataForSpecificArtwork(previewAbsolutePath, commonMetadata).then(() => {
         return _ingestMetadataForSpecificArtwork(previewAbsolutePath, metadata[artworkURI]).then(() => {
-          enrichSchemaAssociatedMedia(metadata[artworkURI], {
-            'identifier': path.basename(previewAbsolutePath),
-            'additionalProperty': {
-              '@type': 'PropertyValue',
-              'name': 'sha256',
-              'value': createHash('sha256').update(fs.readFileSync(previewAbsolutePath)).digest('hex')
-            }
-          })
-
-          // We will not need the preview file metadata, as it's all about the artwork anyways,
-          // so now we can clean up as the ingestion is finished
-          delete metadata[`file://${previewAbsolutePath}`]
-
           console.log(`Ingested metadata into ${previewAbsolutePath}`)
         })
       }).catch((err) => {
@@ -97,7 +75,7 @@ export async function ingest(metadata) {
     })
 
     // Get rid of the common metadata, as it's not needed anymore
-    _.difference(Object.keys(metadata), artworkURIs()).forEach((key) => {
+    Object.keys(metadata).filter((key) => !key.startsWith('file://')).forEach((key) => {
       delete metadata[key]
     })
   })
@@ -157,7 +135,7 @@ async function _ingestMetadataForSpecificArtwork(artworkPathOrUri, tags) {
 
   // Only keep the metadata that makes sense for exiftool
   Object.keys(tagsAdjusted).forEach((key) => {
-    if (key.startsWith('schema:') || key.startsWith('@') || key.startsWith('nft:')) {
+    if (key.startsWith('schema:') || key.startsWith('nft:')) {
       // Schema.org fields or nft specific fields are not intended for exiftool
       delete tagsAdjusted[key]
     }
@@ -895,30 +873,4 @@ function _normalizeCertificateFieldNames(certificateMetadata) {
  */
 function _isObject(variable) {
   return typeof variable === 'object' && variable !== null && !Array.isArray(variable)
-}
-
-/**
- * Will add or update the associated media metadata by name
- * @param {object} artworkMetadata
- * @param {object} associatedMediaObjectMetadata
- */
-export function enrichSchemaAssociatedMedia(artworkMetadata, associatedMediaObjectMetadata) {
-  artworkMetadata['schema:associatedMedia'] =
-      artworkMetadata['schema:associatedMedia'] === undefined ? [] : artworkMetadata['schema:associatedMedia']
-
-  if (_isObject(artworkMetadata['schema:associatedMedia'])) {
-    artworkMetadata['schema:associatedMedia'] = Object.values(artworkMetadata['schema:associatedMedia'])
-  }
-
-  let foundAt = -1
-  artworkMetadata['schema:associatedMedia'].forEach((obj, index) => {
-    if (obj['identifier'] === associatedMediaObjectMetadata['identifier']) {
-      foundAt = index
-    }
-  })
-  if (foundAt !== -1) {
-    _.merge(artworkMetadata['schema:associatedMedia'][foundAt], associatedMediaObjectMetadata)
-  } else {
-    artworkMetadata['schema:associatedMedia'].push(associatedMediaObjectMetadata)
-  }
 }

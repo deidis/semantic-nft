@@ -1,12 +1,9 @@
 import fs from 'fs'
 import path from 'path'
 import sharp from 'sharp'
-import {enrichSchemaAssociatedMedia, artworkPreviewFileExtension, artworkURIs} from './metadata.js'
-import {createHash} from 'node:crypto'
-import web3 from 'web3'
-import {fileUriToIpfsUri} from './ipfs.js'
+import {artworkPreviewFileExtension, artworkURIs} from './metadata.js'
 import SemanticNFT from './SemanticNFT.js'
-import {lookupSynonyms, updateObjectFieldWithAllSynonyms} from './vocabulary.js'
+import {updateObjectFieldWithAllSynonyms} from './vocabulary.js'
 
 export const ARTWORK_FILE_NAME_WITHOUT_EXT = 'artwork'
 export const ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT = 'preview'
@@ -45,13 +42,6 @@ export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMeta
       // Update the metadata to point to the working file
       preparedMetadata[artworkURI] = preparedMetadata[`file://${originalArtworkAbsolutePath}`]
       delete preparedMetadata[`file://${originalArtworkAbsolutePath}`]
-
-      // Improve schema
-      enrichSchemaAssociatedMedia(preparedMetadata[artworkURI], {
-        '@type': 'ImageObject',
-        'identifier': path.basename(artworkURI),
-        'contentUrl': artworkURI
-      })
     }
   })
 
@@ -82,21 +72,9 @@ export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMeta
 
       // We don't need all the metadata from the artwork on the preview, so we can clean it up
       Object.keys(preparedMetadata[`file://${absolutePreviewWorkingPath}`]).forEach((key) => {
-        if (key.startsWith('schema:') || key.startsWith('@') || key.startsWith('nft:')) {
+        if (key.startsWith('schema:') || key.startsWith('nft:')) {
           delete preparedMetadata[`file://${absolutePreviewWorkingPath}`][key]
         }
-      })
-
-      // Improve schema
-      enrichSchemaAssociatedMedia(preparedMetadata[artworkURI], {
-        '@type': 'ImageObject',
-        'identifier': path.basename(absolutePreviewWorkingPath),
-        'contentUrl': `file://${absolutePreviewWorkingPath}`
-      })
-
-      enrichSchemaAssociatedMedia(preparedMetadata[artworkURI], {
-        'identifier': path.basename(artworkURI),
-        'thumbnailUrl': `file://${absolutePreviewWorkingPath}`
       })
     })
     )
@@ -105,22 +83,6 @@ export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMeta
   return Promise.all(previewPromises).then(() => {
     _copyLicensesToWorkingDir(preparedMetadata, overwrite)
     _copyOtherAssociatedMediaToWorkingDir(preparedMetadata, overwrite)
-    return Promise.all(artworkURIs(preparedMetadata).map( async (artworkURI) => {
-      const licenseUri = preparedMetadata[artworkURI]['XMP-xmpRights:WebStatement']
-      if (licenseUri.startsWith('file://')) {
-        // Improve schema
-        enrichSchemaAssociatedMedia(preparedMetadata[artworkURI], {
-          '@type': path.extname(licenseUri).toLowerCase() === '.txt' ? 'TextObject' : 'MediaObject',
-          'identifier': path.basename(licenseUri),
-          'contentUrl': await fileUriToIpfsUri(licenseUri),
-          'additionalProperty': {
-            '@type': 'PropertyValue',
-            'name': 'sha256',
-            'value': createHash('sha256').update(fs.readFileSync(licenseUri.replace('file://', ''))).digest('hex')
-          }
-        })
-      }
-    }))
   })
 }
 
@@ -192,7 +154,11 @@ function _copyLicensesToWorkingDir(metadata, overwrite = true) {
       }
 
       // Update the metadata to point to the working file
-      updateObjectFieldWithAllSynonyms(metadata[artworkURI], 'XMP-xmpRights:WebStatement', `file://${licenseWorkingFilePath}`)
+      updateObjectFieldWithAllSynonyms(
+          metadata[artworkURI],
+          'XMP-xmpRights:WebStatement',
+          `file://${licenseWorkingFilePath}`
+      )
     } else {
       if (!licenseUri) {
         throw Error(`License is not defined for ${artworkURI}`)
