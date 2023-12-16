@@ -3,6 +3,7 @@ import path from 'path'
 import {createHash} from 'node:crypto'
 import fs from 'fs'
 import web3 from 'web3'
+import mime from 'mime'
 
 /**
  * @class SemanticNFT
@@ -71,6 +72,7 @@ export default class SemanticNFT {
       // TODO: we don't want to set the contentUrl if we do the "unlockable content" - we're not going to publish it
       'contentUrl': this.#artworkUri,
       'thumbnailUrl': this.#artworkPreviewUri,
+      'encodingFormat': mime.getType(this.#artworkUri),
       'additionalProperty': {
         '@type': 'PropertyValue',
         'name': 'sha256',
@@ -82,6 +84,7 @@ export default class SemanticNFT {
       '@type': 'ImageObject',
       'identifier': path.basename(this.#artworkPreviewUri),
       'contentUrl': this.#artworkPreviewUri,
+      'encodingFormat': mime.getType(this.#artworkPreviewUri),
       'additionalProperty': {
         '@type': 'PropertyValue',
         'name': 'sha256',
@@ -93,9 +96,10 @@ export default class SemanticNFT {
     const licenseUri = this.#artworkMetadata['schema:license']
     if (licenseUri) {
       this._enrichSchemaAssociatedMedia(this.#artworkMetadata, {
-        '@type': path.extname(licenseUri).toLowerCase() === '.txt' ? 'TextObject' : 'MediaObject',
+        '@type': mime.getType(licenseUri).startsWith('text') ? 'TextObject' : 'MediaObject',
         'identifier': path.basename(licenseUri),
         'contentUrl': licenseUri,
+        'encodingFormat': mime.getType(licenseUri),
         'additionalProperty': {
           '@type': 'PropertyValue',
           'name': 'sha256',
