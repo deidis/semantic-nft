@@ -14,6 +14,9 @@ dependencies:
   '@signpdf/utils':
     specifier: ^3.1.0
     version: 3.1.0
+  adm-zip:
+    specifier: ^0.5.10
+    version: 0.5.10
   exiftool-vendored:
     specifier: ^23.6.0
     version: 23.6.0
@@ -585,6 +588,11 @@ packages:
 
   /actor@2.3.1:
     resolution: {integrity: sha512-ST/3wnvcP2tKDXnum7nLCLXm+/rsf8vPocXH2Fre6D8FQwNkGDd4JEitBlXj007VQJfiGYRQvXqwOBZVi+JtRg==}
+    dev: false
+
+  /adm-zip@0.5.10:
+    resolution: {integrity: sha512-x0HvcHqVJNTPk/Bw8JbLWlWoo6Wwnsug0fnYYro1HBrjxZ3G7/AZk7Ahv8JwDe1uIcz8eBqvu86FuF1POiG7vQ==}
+    engines: {node: '>=6.0'}
     dev: false
 
   /ajv@6.12.6:

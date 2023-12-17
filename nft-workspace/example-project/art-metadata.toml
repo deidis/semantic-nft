@@ -24,6 +24,9 @@ title = "Title of the landscape photo"
 certificate="certificate.pdf"
 license='licensing/CC BY.txt'
 publisher={"@type" = "Organization", name = "Silvermind"}
+# Normally this would be filled with the IPFS of the packaged artwork, e.g. UDA.zip,
+# but we might want to point to a website, so that marketplaces point to it
+external_url="https://silvermind.art"
 
 # We can dictate what format will the preview be generated, and what metadata it should have (overriding form the artwork)
 ["landscape/preview.webp"]

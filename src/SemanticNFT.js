@@ -6,7 +6,10 @@ import web3 from 'web3'
 import mime from 'mime'
 import sharp from 'sharp'
 import {calculateCID} from './ipfs.js'
+import AdmZip from 'adm-zip'
+import {updateObjectFieldWithAllSynonyms} from './vocabulary.js'
 
+export const UNENCRYPTED_ARTEFACT_NAME_WITHOUT_EXTENSION = 'unencrypted_digital_artefact'
 /**
  * @class SemanticNFT
  */
@@ -64,10 +67,10 @@ export default class SemanticNFT {
     }
 
     await this._generateInfoDoc()
-
     await this._package()
 
     let tokenJsonObj = _.mapKeys(
+        // It's not recursive, but the prefix is only used at the first level, so we're good
         _.reduce(this.#artworkMetadata, function(result, value, key) {
           if (key.startsWith('nft:') || key.startsWith('schema:') ) {
             result[key] = value
@@ -80,14 +83,10 @@ export default class SemanticNFT {
 
     tokenJsonObj = await this._mapToIpfs(tokenJsonObj, false)
 
-    // console.log(tokenJsonObj)
-
     fs.writeSync(
         fs.openSync(path.join(path.dirname(this.#artworkUri.replace('file://', '')), 'nft.json'), 'w'),
         JSON.stringify(tokenJsonObj, null, 2)
     )
-
-    // TODO: transform the json so that the url as well as contentUrl file:// points to ipfs://
   }
 
 
@@ -117,7 +116,32 @@ export default class SemanticNFT {
   }
 
   _package = async () => {
-    // TODO: zip associatedMedia, and adjust the metadata
+    if (this.#artworkMetadata['schema:associatedMedia']) {
+      const zip = new AdmZip()
+      const outputFile = `${path.dirname(this.#artworkUri.replace('file://', ''))}/${UNENCRYPTED_ARTEFACT_NAME_WITHOUT_EXTENSION}.zip`
+      for (const associatedMedia of this.#artworkMetadata['schema:associatedMedia']) {
+        if (!!associatedMedia['contentUrl']) {
+          zip.addFile(
+              path.basename(associatedMedia['contentUrl']),
+              fs.readFileSync(associatedMedia['contentUrl'].replace('file://', ''))
+          )
+        }
+      }
+      await zip.writeZipPromise(outputFile)
+      updateObjectFieldWithAllSynonyms(this.#artworkMetadata, 'schema:url', `file://${outputFile}`, false)
+      const additionalProperty = {
+        '@type': 'PropertyValue',
+        'name': 'sha256',
+        'value': createHash('sha256')
+            .update(fs.readFileSync(outputFile)).digest('hex')
+      }
+
+      this._enrichSchemaAdditionalProperty(additionalProperty)
+
+      console.debug(`Created ${outputFile}`)
+    } else {
+      // Nothing to do
+    }
   }
 
   /**
@@ -193,15 +217,15 @@ export default class SemanticNFT {
             `${artworkPreviewMediaMetadata.density} pixels per ${artworkPreviewMediaMetadata.resolutionUnit}` : ''
       ].filter((section) => !!section).join(', ')
 
-      this._enrichSchemaAssociatedMedia(this.#artworkMetadata, artworkPreviewMedia)
+      this._enrichSchemaAssociatedMedia(artworkPreviewMedia)
     }
 
-    this._enrichSchemaAssociatedMedia(this.#artworkMetadata, artworkMedia)
+    this._enrichSchemaAssociatedMedia(artworkMedia)
 
 
     const licenseUri = this.#artworkMetadata['schema:license']
     if (licenseUri) {
-      this._enrichSchemaAssociatedMedia(this.#artworkMetadata, {
+      this._enrichSchemaAssociatedMedia({
         '@type': mime.getType(licenseUri).startsWith('text') ? 'TextObject' : 'MediaObject',
         'identifier': path.basename(licenseUri),
         'name': 'License',
@@ -219,7 +243,7 @@ export default class SemanticNFT {
 
     const certificateUri = Object.keys(this.#artworkMetadata['XMP-xmpRights:Certificate'])[0]
     if (certificateUri) {
-      this._enrichSchemaAssociatedMedia(this.#artworkMetadata, {
+      this._enrichSchemaAssociatedMedia({
         '@type': 'MediaObject', // Maybe use LegislationObject?
         'identifier': path.basename(certificateUri),
         'name': 'Certificate of Authenticity',
@@ -238,11 +262,11 @@ export default class SemanticNFT {
 
   /**
    * @method _enrichSchemaAssociatedMedia
-   * @param {object} artworkMetadata
    * @param {object} associatedMediaObjectMetadata
    * @private
    */
-  _enrichSchemaAssociatedMedia(artworkMetadata, associatedMediaObjectMetadata) {
+  _enrichSchemaAssociatedMedia(associatedMediaObjectMetadata) {
+    const artworkMetadata = this.#artworkMetadata
     artworkMetadata['schema:associatedMedia'] =
         artworkMetadata['schema:associatedMedia'] === undefined ? [] : artworkMetadata['schema:associatedMedia']
 
@@ -260,6 +284,35 @@ export default class SemanticNFT {
       _.merge(artworkMetadata['schema:associatedMedia'][foundAt], associatedMediaObjectMetadata)
     } else {
       artworkMetadata['schema:associatedMedia'].push(associatedMediaObjectMetadata)
+    }
+  }
+
+  /**
+   * @method _enrichSchemaAssociatedMedia
+   * @param {object} additionalPropertyObjectMetadata
+   * @private
+   */
+  _enrichSchemaAdditionalProperty(additionalPropertyObjectMetadata) {
+    const artworkMetadata = this.#artworkMetadata
+    if (artworkMetadata['schema:additionalProperty'] === undefined) {
+      artworkMetadata['schema:additionalProperty'] = additionalPropertyObjectMetadata
+      return
+    } else {
+      if (_isObject(artworkMetadata['schema:additionalProperty'])) {
+        artworkMetadata['schema:additionalProperty'] = Object.values(artworkMetadata['schema:additionalProperty'])
+      }
+    }
+
+    let foundAt = -1
+    artworkMetadata['schema:additionalProperty'].forEach((obj, index) => {
+      if (obj['name'] === additionalPropertyObjectMetadata['name']) {
+        foundAt = index
+      }
+    })
+    if (foundAt !== -1) {
+      _.merge(artworkMetadata['schema:additionalProperty'][foundAt], additionalPropertyObjectMetadata)
+    } else {
+      artworkMetadata['schema:additionalProperty'].push(additionalPropertyObjectMetadata)
     }
   }
 
@@ -332,7 +385,14 @@ async function _mapObjectRecursivelyAsync(obj, asyncCallback) {
   for (const key in obj) {
     if (obj.hasOwnProperty(key)) {
       if (typeof obj[key] === 'object') {
-        newObj[key] = await _mapObjectRecursivelyAsync(obj[key], asyncCallback)
+        if (Array.isArray(obj[key])) {
+          newObj[key] = []
+          for (const item of obj[key]) {
+            newObj[key].push(await _mapObjectRecursivelyAsync(item, asyncCallback))
+          }
+        } else {
+          newObj[key] = await _mapObjectRecursivelyAsync(obj[key], asyncCallback)
+        }
       } else {
         newObj[key] = await asyncCallback(obj[key])
       }
