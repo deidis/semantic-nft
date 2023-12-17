@@ -40,7 +40,7 @@ try {
   await ingest()
 
   console.log('Preparing NFTs...')
-  tokenize(metadata)
+  await tokenize(metadata)
   // console.log(JSON.stringify(metadata, null, 2))
 } catch (err) {
   // console.error('ERROR:', err.message)

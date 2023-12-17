@@ -48,7 +48,7 @@ export default class CertificateOfAuthenticity {
    * Call it right after instantiation to build the whole PDF
    *
    * @method build
-   * @return {Promise<string|null>} - The absolute path to the PDF working file,
+   * @return {Promise<string|null>} - The file uri to the PDF working file,
    * if copying wasn't possible it will return null
    */
   async build() {
@@ -71,7 +71,7 @@ export default class CertificateOfAuthenticity {
         await this.render()
         this.#pdf.end()
         return promiseFromStream.then(() => {
-          return this.#certificateUri.replace('file://', '')
+          return this.#certificateUri
         })
       } else {
         if (fs.existsSync(this.#certificateUri.replace('file://', ''))) {
@@ -92,7 +92,7 @@ export default class CertificateOfAuthenticity {
         }
       }
 
-      return this.#certificateUri.replace('file://', '')
+      return this.#certificateUri
     }
     return null
   }

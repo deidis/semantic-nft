@@ -1,6 +1,6 @@
 import path from 'path'
 import {prepareMetadata, clean, artworkPaths, ingest} from '../src/metadata.js'
-import {prepareArtworks} from '../src/artwork.js'
+import {prepareArtworks, tokenize} from '../src/artwork.js'
 import {collectFiles} from '../src/collectFiles.js'
 import {prepareCertificates} from '../src/certificate.js'
 import {exiftool} from 'exiftool-vendored'
@@ -40,9 +40,9 @@ try {
   await clean(artworkPaths())
   await ingest()
 
-  console.log(JSON.stringify(metadata, null, 2))
-
-  // TODO: collect all files that were prescribed in schema:associatedMedia
+  // TODO: remove from here
+  await tokenize(metadata)
+  // console.log(JSON.stringify(metadata, null, 2))
 } catch (err) {
   // console.error('ERROR:', err.message)
   console.error(err)

@@ -34,6 +34,7 @@ export async function ingest(metadata) {
         ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT +
         artworkPreviewFileExtension(artworkAbsolutePath, metadata)
 
+    // TODO: (phase 3) make this configurable. Artists may not want to touch the artwork file at all, not even the metadata
     ingestingPromises.push(_ingestMetadataForSpecificArtwork(artworkURI, commonMetadata).then(() => {
       return _ingestMetadataForSpecificArtwork(artworkURI, metadata[artworkURI]).then(() => {
         console.log(`Ingested metadata into ${artworkAbsolutePath}`)
@@ -54,7 +55,7 @@ export async function ingest(metadata) {
   })
 
   return Promise.all(ingestingPromises).then(() => {
-    // Get rid of empty fields as they are just noise
+    // Get rid of empty fields as they are just noise at this point
     Object.keys(metadata).forEach((key) => {
       const value = metadata[key]
       if (_isObject(value) && Object.keys(value).length === 0) {

@@ -181,14 +181,13 @@ function _copyOtherAssociatedMediaToWorkingDir(metadata, overwrite = true) {
 /**
  * @param {object} metadata
  */
-export function tokenize(metadata) {
-  artworkURIs(metadata).forEach((artworkUri) => {
+export async function tokenize(metadata) {
+  for (const artworkUri of artworkURIs(metadata)) {
     const previewExt = artworkPreviewFileExtension(artworkUri, metadata)
     const artworkPreviewUri = path.dirname(artworkUri) +
         path.sep +
         ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT +
         previewExt
-    const nft = (new SemanticNFT(artworkUri, metadata[artworkUri], artworkPreviewUri, false))
-    nft.build()
-  })
+    await (new SemanticNFT(artworkUri, metadata[artworkUri], artworkPreviewUri)).build()
+  }
 }
