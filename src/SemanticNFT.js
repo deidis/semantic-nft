@@ -10,6 +10,7 @@ import AdmZip from 'adm-zip'
 import {updateObjectFieldWithAllSynonyms} from './vocabulary.js'
 
 export const UNENCRYPTED_ARTEFACT_NAME_WITHOUT_EXTENSION = 'unencrypted_digital_artefact'
+export const ENCRYPTED_ARTEFACT_NAME_WITHOUT_EXTENSION = 'eda'
 /**
  * @class SemanticNFT
  */
@@ -47,6 +48,13 @@ export default class SemanticNFT {
     this.#artworkUri = artworkWorkingFileUri
     this.#artworkPreviewUri = previewWorkingFileUri
     this.#artworkMimeType = mime.getType(this.#artworkUri)
+
+    if (!this.#artworkMetadata['schema:encodingFormat']) {
+      // We assume it's UDA.zip
+      this.#artworkMetadata['schema:encodingFormat'] = mime.getType(`${UNENCRYPTED_ARTEFACT_NAME_WITHOUT_EXTENSION}.zip`)
+    } else {
+      // It's about EDA
+    }
   }
 
   build = async () => {
@@ -61,6 +69,9 @@ export default class SemanticNFT {
     if (!this.#artworkMetadata['schema:@type']) {
       this.#artworkMetadata['schema:@type'] = 'CreativeWork'
     }
+
+    // TODO: (phase 3) if @type is ImageObject, additionally set height, width, contentUrl of the associated media artwork
+
 
     if (validate) {
       this._validate()
@@ -116,9 +127,16 @@ export default class SemanticNFT {
   }
 
   _package = async () => {
+    if (this.#artworkMetadata['schema:encodingFormat'] !== 'application/zip') {
+      throw Error(`Unsupported encoding format: ${this.#artworkMetadata['schema:encodingFormat']}`)
+    }
+
+    // TODO: (phase 2) detect if we want to package EDA (unlockable content), probably encodingFormat='application/png'?
+
     if (this.#artworkMetadata['schema:associatedMedia']) {
       const zip = new AdmZip()
-      const outputFile = `${path.dirname(this.#artworkUri.replace('file://', ''))}/${UNENCRYPTED_ARTEFACT_NAME_WITHOUT_EXTENSION}.zip`
+      const outputFile = `${path.dirname(this.#artworkUri.replace('file://', ''))}`+
+          path.sep + `${UNENCRYPTED_ARTEFACT_NAME_WITHOUT_EXTENSION}.zip`
       for (const associatedMedia of this.#artworkMetadata['schema:associatedMedia']) {
         if (!!associatedMedia['contentUrl']) {
           zip.addFile(
@@ -149,8 +167,7 @@ export default class SemanticNFT {
    * @private
    */
   async _collectAssociatedMedia() {
-    // TODO: (phase 2) we don't want to set the contentUrl if we do the unlockable content
-    const artworkPubliclyAvailable = true
+    const artworkPubliclyAvailable = this.#artworkMetadata['schema:encodingFormat'] === 'application/zip'
 
     const artworkFileBuffer = fs.readFileSync(this.#artworkUri.replace('file://', ''))
     const artworkMedia = {
