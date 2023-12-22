@@ -1,0 +1,66 @@
+# https://docs.silvermind.art/fundamentals/digital-asset
+
+### XMP-dc:Creator, Exif:Artist, schema:creator
+# One or many creators of the asset. This can be a person or an organization.
+# Or multiple people and organizations. Separated by commas.
+# When provided as a string, the value is split by commas and each value is assumed to be a person.
+# When provided as JSON, it can be of type Person or Organization (schema.org types).
+### Default: empty
+#creator=
+
+### XMP-dc:Date, schema:datePublished
+# When the artwork was first published, it would be very unusual to set it to something else than today.
+# It only makes sense to not use the default if you're are upgrading the metadata of an existing NFT,
+# in that case we have to use the date the artwork was first published.
+### Default: today
+#date=
+
+### XMP-dc:Description, schema:description
+# It is normally a multilne string written in Markdown.
+### Default: empty
+#description=
+
+### XMP-dc:Identifier, schema:@id
+# Must be of the following form: urn:<blockchain>:<collectionId>:<tokenId>
+### Default: empty
+#identifier=
+
+### XMP-dc:Publisher, schema:publisher
+# The publisher of the asset. This can be a person or an organization.
+### Default: empty
+#publisher=
+
+### XMP-dc:Rights
+# A condensed information from Exif:Copyright and XMP-xmpRights:UsageTerms.
+### Default: empty
+#rights=
+
+### XMP-dc:Title, schema:name, Exif:ImageDescription
+# The title, one of the most important fields.
+### Default: N/A - the field is obligatory
+#title=
+
+### XMP-dc:Type, schema:@type
+# CreativeWork or a subtype. Currently only Photograph is supported.
+### Default: CreativeWork
+#@type=
+
+### XMP-xmpRights:Certificate
+# The certificate of authenticity, or an empty string to disable it.
+### Default: certificate.pdf (generated)
+#certificate=
+
+# XMP-xmpRights:WebStatement, schema:license
+# The license URL. It can also be a path in the local disk, in which case we will copied into the artefact.
+### Default: N/A - the field is obligatory
+#license=
+
+### Exif:Copyright
+# Copyright information
+### Default: empty
+#copyright=
+
+### schema:sameAs
+# Another URL representing this asset.
+### Default: link to the NFT on etherscan
+#sameAs=

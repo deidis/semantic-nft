@@ -1,0 +1,178 @@
+# https://docs.silvermind.art/fundamentals/digital-asset
+
+### XMP-dc:Contributor, schema:contributor
+# One or many contributors to the asset. This can be a person or an organization.
+# Or multiple people and organizations. Separated by commas.
+# When provided as a string, the value is split by commas and each value is assumed to be a person.
+# When provided as JSON, it can be of type Person or Organization (schema.org types).
+#
+### Default: empty
+#contributor=
+
+### XMP-dc:Coverage
+# A location or a timeframe the asset is related to.
+### Default: empty
+#coverage=
+
+### XMP-dc:Creator, Exif:Artist, schema:creator
+# One or many creators of the asset. This can be a person or an organization.
+# Or multiple people and organizations. Separated by commas.
+# When provided as a string, the value is split by commas and each value is assumed to be a person.
+# When provided as JSON, it can be of type Person or Organization (schema.org types).
+### Default: empty
+#creator=
+#artist=
+
+### XMP-dc:Date, schema:datePublished
+# When the artwork was first published, it would be very unusual to set it to something else than today.
+# It only makes sense to not use the default if you're are upgrading the metadata of an existing NFT,
+# in that case we have to use the date the artwork was first published.
+### Default: today
+#date=
+#datePublished=
+
+### XMP-dc:Description, schema:description
+# It is normally a multilne string written in Markdown.
+### Default: empty
+#description=
+
+### XMP-dc:Format, schema:encodingFormat
+# Currently only  application/zip (UDA.zip)
+# or image/png (EDA.png with the artefact.zip after the marker) are supported.
+### Default: application/zip, or the mime type of the digital artefact file (not the artwork)
+#format=
+#encodingFormat
+
+### XMP-dc:Identifier, schema:@id
+# Must be of the following form: urn:<blockchain>:<collectionId>:<tokenId>
+### Default: empty
+#identifier=
+#@id
+
+### XMP-dc:Language
+# For example: en, de, fr ...
+### Default: empty
+#language=
+
+### XMP-dc:Publisher, schema:publisher
+# The publisher of the asset. This can be a person or an organization.
+### Default: empty
+#publisher=
+
+### XMP-dc:Relation
+# Identifier of a relation to another asset. Normlly empty.
+### Default: empty
+#relation=
+
+### XMP-dc:Rights
+# A condensed information from Exif:Copyright and XMP-xmpRights:UsageTerms.
+### Default: empty
+#rights=
+
+### XMP-dc:Source
+# Identifier of the resource from which this asset was originated.
+### Default: empty
+#source=
+
+### XMP-dc:Subject
+# The topic. Normally a comma separated list of keywords.
+### Default: empty
+#subject=
+
+### XMP-dc:Title, schema:name, Exif:ImageDescription
+# The title, one of the most important fields.
+### Default: N/A - the field is obligatory
+#title=
+#imageDescription=
+
+### XMP-dc:Type, schema:@type
+# CreativeWork or a subtype. Currently only Photograph is supported.
+### Default: CreativeWork
+#type=
+#@type=
+
+### XMP-xmpRights:Certificate
+# The certificate of authenticity, or an empty string to disable it.
+### Default: certificate.pdf (generated)
+#certificate=
+
+### XMP-xmpRights:Marked
+# true or false, if the asset is not public domain
+### Default: empty, or true if we are sure it is not public domain
+#marked=
+
+### XMP-xmpRights:UsageTerms
+# The license verbatim if XMP-xmpRights:WebStatement isn't provided.
+### Default: empty
+#usageTerms=
+
+# XMP-xmpRights:WebStatement, schema:license
+# The license URL. It can also be a path in the local disk, in which case we will copied into the artefact.
+### Default: N/A - the field is obligatory
+#webStatement=
+#license=
+
+### Exif:CreateDate, schema:dateCreated
+# The date the artwork was created (digitized)
+### Default: today
+#createDate=
+#dateCreated=
+
+### Exif:DateTimeOriginal
+# The date the artwork was originally recorded. E.g. physical artwork before digitization.
+### Default: empty
+#dateTimeOriginal=
+
+
+### Exif:ModifyDate, schema:dateModified
+# When the artwork or metadata was last modified.
+### Default: the timestamp of when the certificate was signed
+#modifyDate=
+#dateModified=
+
+### schema:additionalProperty
+# Objec or array of any additional information.
+### Default: sha256 of the digital artefact file (not the artwork)
+#additionalProperty=
+
+### schema:associatedMedia
+# Any associated media besides the license, certificate, artwork and preview.
+### Default: Artwork, Preview, Certificate of Authenticity, License
+#associatedMedia=
+
+### schema:copyrightHolder
+# The owner of the asset. This can be a person or an organization.
+### Default: artist
+#copyrightHolder=
+
+### schema:copyrightYear
+# The year
+### Default: minimum of created, modified, published date
+#copyrightYear=
+
+### schema:sameAs
+# Another URL representing this asset.
+### Default: link to the NFT on etherscan
+#sameAs=
+
+### schema:version
+# The version of the artwork and metadata.
+### Default: 1
+#version=
+
+### nft:external_url, schema:url
+# The URL where the asset can be consumed. Normally external_url would be a link shown by marketplaces,
+# while url is the link to the artefact itself on IPFS.
+### Default: address on IPFS where the digital artefact is stored
+#external_url=
+#url=
+
+### nft:attributes
+# Stuff for marketplaces for NFT attributes that create scarcity.
+### Default: empty
+#attributes=
+
+### nft:properties
+# Stuff for marketplaces for describing NFTs
+### Default: empty
+#properties=
