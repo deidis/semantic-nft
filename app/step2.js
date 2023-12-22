@@ -41,8 +41,8 @@ try {
   await clean(artworkPaths())
   await ingest()
 
-  // TODO: move the above code into a reusable service.
-  // TODO: create a step12.js, then step3.js (for uploading to IPFS), then step123.js (for everything)
+  // TODO: (phase 2) move the above code into a reusable service.
+  // TODO: (phase 1) create a step12.js, then step3.js (for uploading to IPFS), then step123.js (for everything)
 
   // TODO: (phase 2) make this a CLI tool
   // TODO: (phase 2) make this a nodjs module, which works with the CLI tool

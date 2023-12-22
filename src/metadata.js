@@ -142,6 +142,13 @@ async function _ingestMetadataForSpecificArtwork(artworkPathOrUri, tags) {
     }
   })
 
+  // Convert dates to Exiftool dates
+  Object.keys(tagsAdjusted).forEach((key) => {
+    if (['XMP-dc:Date'].includes(key)) {
+      tagsAdjusted[key] = tagsAdjusted[key].toISOString().slice(0, 10)
+    }
+  })
+
   await exiftool.write(artworkPath, tagsAdjusted, ['-xmptoolkit=', '-overwrite_original'])
 }
 
@@ -188,12 +195,6 @@ export function prepareMetadata(tomlFileAbsolutePaths) {
     // NOTE: This is a shallow merge, so if there are duplicate keys, the last one wins
     Object.assign(result, tomlJson)
 
-    // Only this one is currently supported
-    result['schema:@context'] = 'https://schema.org/'
-    if (!result['schema:@type']) {
-      updateObjectFieldWithAllSynonyms(result, 'schema:@type', 'CreativeWork')
-    }
-
     // Now resolve the table headers into absolute file paths
     const describedArtworks = _mentionedArtworks(tomlFileAbsolutePath, tomlJson)
     for (const tomlTableHeader in describedArtworks) {
@@ -213,6 +214,38 @@ export function prepareMetadata(tomlFileAbsolutePaths) {
   _normalizeFields(result)
   _prepareMetadataOfLicenses(result)
   _prepareMetadataOfCertificates(result)
+
+  // Only this one is currently supported
+  result['schema:@context'] = 'https://schema.org/'
+
+  // Default type
+  if (!result['schema:@type']) {
+    updateObjectFieldWithAllSynonyms(result, 'schema:@type', 'CreativeWork', false)
+  }
+
+  // Default copyright holder
+  if (!result['schema:copyrightHolder']) {
+    if (result['schema:creator']) {
+      updateObjectFieldWithAllSynonyms(result, 'schema:copyrightHolder', result['schema:creator'], false)
+    }
+  }
+
+  // Default datePublished
+  let datePublished = result['schema:datePublished']
+  if (!datePublished) {
+    datePublished = new Date(
+        Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate())
+    )
+  }
+  updateObjectFieldWithAllSynonyms(
+      result,
+      'schema:datePublished',
+      datePublished,
+      false)
+
+  if (!result['schema:version']) {
+    updateObjectFieldWithAllSynonyms(result, 'schema:version', 1, false)
+  }
 
   __METADATA_CACHE[cachekey] = result
 
@@ -309,11 +342,10 @@ const commonMetadataForAllArtworks = (metadata) => {
   const tomlJson = metadata || _getMetadata()
   const result = {}
   for (const tomlJsonKey in tomlJson) {
-    if (!(typeof tomlJson[tomlJsonKey] === 'object' &&
-        tomlJson[tomlJsonKey] !== null &&
-        !Array.isArray(tomlJson[tomlJsonKey]))) {
-      result[tomlJsonKey] = tomlJson[tomlJsonKey]
+    if (tomlJsonKey.startsWith('file://')) {
+      continue
     }
+    result[tomlJsonKey] = tomlJson[tomlJsonKey]
   }
 
   return result
@@ -489,6 +521,23 @@ function _prepareMetadataOfLicenses(metadata) {
 
   // By now we should have the licenses (if prescribed) in the context of evry artwork, so delete the field globally
   delete metadata['XMP-xmpRights:WebStatement']
+
+  // TODO: (phase 2) what if we have other licenses which are equivalent to public domain?
+  const publicDomainLicenseName = 'CC0'
+
+  artworkURIs(metadata).forEach((artworkURI) => {
+    if (metadata[artworkURI]['XMP-xmpRights:WebStatement']) {
+      if (!metadata[artworkURI]['XMP-xmpRights:Marked']) {
+        if (!path.basename(metadata[artworkURI]['XMP-xmpRights:WebStatement']).startsWith(publicDomainLicenseName)) {
+          updateObjectFieldWithAllSynonyms(metadata[artworkURI], 'XMP-xmpRights:Marked', 'true', false)
+        }
+      } else {
+        metadata[artworkURI]['XMP-xmpRights:Marked'] = (
+            metadata[artworkURI]['XMP-xmpRights:Marked'].toString() === 'false' ? 'false' : 'true'
+        )
+      }
+    }
+  })
 }
 
 /**
@@ -889,5 +938,5 @@ function _normalizeCertificateFieldNames(certificateMetadata) {
  * @private
  */
 function _isObject(variable) {
-  return typeof variable === 'object' && variable !== null && !Array.isArray(variable)
+  return typeof variable === 'object' && variable !== null && !Array.isArray(variable) && !(variable instanceof Date)
 }

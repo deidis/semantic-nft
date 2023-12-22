@@ -84,19 +84,14 @@ export default class SemanticNFT {
     await this._collectAssociatedMedia()
 
     // TODO: take care of the date-related fields
-    // TODO: date, datePublished = TODAY by default
     // TODO: createDate = TODAY by default
     // TODO: dateTimeDigitized = create date if not specified
     // TODO: modifyDate - when certificate was signed
     // TODO: image_url
     // TODO: make sure title is set, it must be obligatory
-    // TODO: set "marked" field to true if we are sure it's not public domain, otherwise empty
-    // TODO: Owner/copyrightHolder should be the same as author if not provided
-    // TODO: UsageTerms-> include the text of the license
+    // TODO: UsageTerms-> include the text of the license if webContent isn't provided
     // TODO: copyright year
     // TODO: sameAs
-    // TODO: version = 1 by default
-    // TODO: get rid of XMP-dc:Owner
     // TODO: add image, don't overwrite image_url???
     // TODO: generate image_details
 
@@ -124,6 +119,7 @@ export default class SemanticNFT {
 
     tokenJsonObj = await this._mapToIpfs(tokenJsonObj, false)
 
+    // TODO: stringify datePublished with slice(0, 10)
     fs.writeSync(
         fs.openSync(path.join(path.dirname(this.#artworkUri.replace('file://', '')), 'nft.json'), 'w'),
         JSON.stringify(tokenJsonObj, null, 2)
@@ -429,6 +425,10 @@ export default class SemanticNFT {
 
       // TODO: (phase 2) for extra caution we might want to check if content valid
     }
+
+    if (!this.#artworkMetadata['nft:name']) {
+      throw new Error(`NFT name is not set`)
+    }
   }
 }
 
@@ -452,7 +452,7 @@ async function _mapObjectRecursivelyAsync(obj, asyncCallback) {
   const newObj = {}
   for (const key in obj) {
     if (obj.hasOwnProperty(key)) {
-      if (typeof obj[key] === 'object') {
+      if (typeof obj[key] === 'object' && !(obj[key] instanceof Date)) {
         if (Array.isArray(obj[key])) {
           newObj[key] = []
           for (const item of obj[key]) {

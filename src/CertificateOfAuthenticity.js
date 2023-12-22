@@ -135,7 +135,7 @@ export default class CertificateOfAuthenticity {
     this.#pdf.text('Electronic Autograph')
     const vars = this.pdfVariablesFromMetadata()
 
-    // TODO: do the rendering here
+    // TODO: (phase 1) do the rendering here
     for (const pdfVariablesFromMetadataKey in vars) {
       if (pdfVariablesFromMetadataKey) {
         this.#pdf.text(`${pdfVariablesFromMetadataKey}: ${vars[pdfVariablesFromMetadataKey]}`)

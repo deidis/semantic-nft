@@ -7,6 +7,8 @@ npm-debug.log
 
 nft-workspace/*
 !nft-workspace/example-project/
+!nft-workspace/art-empty.toml
+!nft-workspace/art-minimum.toml
 
 nft-workspace/example-project/landscape/*
 nft-workspace/example-project/portrait/*
