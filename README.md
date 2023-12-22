@@ -98,10 +98,9 @@ certificate='certificate.pdf'
 
 For more examples, please refer to the [example project](./nft-workspace/example-project). Here's the list of fields that are supported:
 
-- author (PDF info tag to represent the author of the PDF, defaults to the artist (_XMP-dc:Creator_ field) of the artwork)
-- title (PDF info tag to represent the title of the PDF, defaults to "Certificate of authenticity")
-- subject (PDF info tag to represent the description of the contents of the PDF, defaults to empty string)
-- TODO: add all
+- Author (PDF info tag to represent the author of the PDF, defaults to the artist (_XMP-dc:Creator_ field) of the artwork)
+- Title (PDF info tag to represent the title of the PDF, defaults to "Certificate of authenticity")
+- Subject (PDF info tag to represent the description of the contents of the PDF, defaults to empty string)
 
 If you already have a certificate PDF and simply want to use it, you can do it like this:
 ```toml

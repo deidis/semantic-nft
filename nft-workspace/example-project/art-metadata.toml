@@ -23,10 +23,12 @@ title = "Title of the landscape photo"
 # If relative path is given, we'll try to generate it into landscape/certificate.pdf
 certificate="certificate.pdf"
 license='licensing/CC BY.txt'
-publisher={"@type" = "Organization", name = "Silvermind"}
+publisher=""
 # Normally this would be filled with the IPFS of the packaged artwork, e.g. UDA.zip,
 # but we might want to point to a website, so that marketplaces point to it
 external_url="https://silvermind.art"
+
+artist="Artist Name, Artist2 Name2"
 
 # We can dictate what format will the preview be generated, and what metadata it should have (overriding form the artwork)
 ["landscape/preview.webp"]
@@ -45,7 +47,7 @@ certificate="portrait/certificate.pdf"
 [square]
 title = "Name of the square photo"
 # This path is outside of the working folder context, so it will not be taken into generation, but will be kept as is
-certificate={"../square-certificate.pdf" = {Author = 'Name Surname', creator = 'Creator Name'}}
+certificate={"./square-certificate.pdf" = {Author = 'Name Surname'}}
 
 # As there's no file in the current dir, this table will be kept as is
 [notanartwork]

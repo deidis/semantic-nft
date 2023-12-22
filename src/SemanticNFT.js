@@ -8,6 +8,7 @@ import sharp from 'sharp'
 import {calculateCID} from './ipfs.js'
 import AdmZip from 'adm-zip'
 import {updateObjectFieldWithAllSynonyms} from './vocabulary.js'
+import {CERTIFICATE_FILE_NAME_WITHOUT_EXT, isSigned} from './certificate.js'
 
 export const UNENCRYPTED_ARTEFACT_NAME_WITHOUT_EXTENSION = 'unencrypted_digital_artefact'
 export const ENCRYPTED_ARTEFACT_NAME_WITHOUT_EXTENSION = 'eda'
@@ -51,15 +52,18 @@ export default class SemanticNFT {
 
     if (!this.#artworkMetadata['schema:encodingFormat']) {
       // We assume it's UDA.zip
-      this.#artworkMetadata['schema:encodingFormat'] = mime.getType(`${UNENCRYPTED_ARTEFACT_NAME_WITHOUT_EXTENSION}.zip`)
+      updateObjectFieldWithAllSynonyms(
+          this.#artworkMetadata,
+          'schema:encodingFormat',
+          mime.getType(`${UNENCRYPTED_ARTEFACT_NAME_WITHOUT_EXTENSION}.zip`)
+      )
     } else {
       // It's about EDA
     }
   }
 
   build = async () => {
-    // TODO: make it true after development, or configurable
-    const validate = false
+    const validate = true
 
     await this._collectAssociatedMedia()
 
@@ -69,6 +73,23 @@ export default class SemanticNFT {
     if (!this.#artworkMetadata['schema:@type']) {
       this.#artworkMetadata['schema:@type'] = 'CreativeWork'
     }
+
+    // TODO: take care of the date-related fields
+    // TODO: date, datePublished = TODAY by default
+    // TODO: createDate = TODAY by default
+    // TODO: dateTimeDigitized = create date if not specified
+    // TODO: modifyDate - when certificate was signed
+    // TODO: image_url
+    // TODO: make sure title is set, it must be obligatory
+    // TODO: set "marked" field to true if we are sure it's not public domain, otherwise empty
+    // TODO: Owner/copyrightHolder should be the same as author if not provided
+    // TODO: UsageTerms-> include the text of the license
+    // TODO: copyright year
+    // TODO: sameAs
+    // TODO: version = 1 by default
+    // TODO: get rid of XMP-dc:Owner
+    // TODO: add image, don't overwrite image_url???
+    // TODO: generate image_details
 
     // TODO: (phase 3) if @type is ImageObject, additionally set height, width, contentUrl of the associated media artwork
 
@@ -249,13 +270,19 @@ export default class SemanticNFT {
         'contentUrl': licenseUri,
         'encodingFormat': mime.getType(licenseUri),
         'contentSize': fs.statSync(licenseUri.replace('file://', '')).size,
-        'additionalProperty': {
-          '@type': 'PropertyValue',
-          'name': 'sha256',
-          'value': createHash('sha256')
-              .update(fs.readFileSync(licenseUri.replace('file://', ''))).digest('hex')
-        }
       })
+
+      if (licenseUri.startsWith('file://')) {
+        this._enrichSchemaAssociatedMedia({
+          'identifier': path.basename(licenseUri),
+          'additionalProperty': {
+            '@type': 'PropertyValue',
+            'name': 'sha256',
+            'value': createHash('sha256')
+                .update(fs.readFileSync(licenseUri.replace('file://', ''))).digest('hex')
+          }
+        })
+      }
     }
 
     const certificateUri = Object.keys(this.#artworkMetadata['XMP-xmpRights:Certificate'])[0]
@@ -339,7 +366,7 @@ export default class SemanticNFT {
   _validate() {
     // Validate the identifier
     // We expect: urn:<blockchain>:<collectionid>:<tokenid>
-    const id = this.#artworkMetadata['XMP-dc:identifier'] || ''
+    const id = this.#artworkMetadata['XMP-dc:Identifier'] || ''
     const idSplits = id.split(':')
     if (idSplits.length !== 4) {
       throw Error(`Invalid identifier: ${id}`)
@@ -377,7 +404,22 @@ export default class SemanticNFT {
       throw Error('Missing schema:@type is invalid. Must be CreativeWork or Photograph')
     }
 
-    // TODO: (phase 2) validate schema:@type. We must only allow CreativeWork or its sub types
+    const certificateUri = Object.keys(this.#artworkMetadata['XMP-xmpRights:Certificate'])[0]
+    if (certificateUri) {
+      // As it's defined, we are sure it must exist in the working folder.
+      // So rather trust this fact instead of taking the path from the metadata, as it might not be fully prepared yet.
+      const absolutePathToCertificate = path.dirname(this.#artworkUri.replace('file://', '')) +
+          path.sep + CERTIFICATE_FILE_NAME_WITHOUT_EXT + '.pdf'
+
+      if (!fs.existsSync(absolutePathToCertificate)) {
+        throw new Error(`Certificate file ${absolutePathToCertificate} does not exist`)
+      }
+      if (!isSigned(absolutePathToCertificate)) {
+        throw new Error(`Certificate file ${absolutePathToCertificate} is not signed`)
+      }
+
+      // TODO: (phase 2) for extra caution we might want to check if content valid
+    }
   }
 }
 

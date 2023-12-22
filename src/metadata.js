@@ -35,19 +35,19 @@ export async function ingest(metadata) {
         artworkPreviewFileExtension(artworkAbsolutePath, metadata)
 
     // TODO: (phase 3) make this configurable. Artists may not want to touch the artwork file at all, not even the metadata
-    ingestingPromises.push(_ingestMetadataForSpecificArtwork(artworkURI, commonMetadata).then(() => {
-      return _ingestMetadataForSpecificArtwork(artworkURI, metadata[artworkURI]).then(() => {
-        console.log(`Ingested metadata into ${artworkAbsolutePath}`)
-      })
+    const ingestMetadata = {...commonMetadata, ...metadata[artworkURI]}
+    ingestingPromises.push(_ingestMetadataForSpecificArtwork(artworkURI, ingestMetadata).then(() => {
+      console.log(`Ingested metadata into ${artworkAbsolutePath}`)
     }).catch((err) => {
       console.error(`ERROR: Failed to ingest metadata into ${artworkAbsolutePath}: ${err}`)
     }))
 
     if (fs.existsSync(previewAbsolutePath)) {
-      ingestingPromises.push(_ingestMetadataForSpecificArtwork(previewAbsolutePath, commonMetadata).then(() => {
-        return _ingestMetadataForSpecificArtwork(previewAbsolutePath, metadata[artworkURI]).then(() => {
-          console.log(`Ingested metadata into ${previewAbsolutePath}`)
-        })
+      if (metadata[`file://${previewAbsolutePath}`]) {
+        Object.assign(ingestMetadata, metadata[`file://${previewAbsolutePath}`])
+      }
+      ingestingPromises.push(_ingestMetadataForSpecificArtwork(previewAbsolutePath, ingestMetadata).then(() => {
+        console.log(`Ingested metadata into ${previewAbsolutePath}`)
       }).catch((err) => {
         console.error(`ERROR: Failed to ingest metadata into ${previewAbsolutePath}: ${err}`)
       }))
@@ -67,7 +67,7 @@ export async function ingest(metadata) {
       }
     })
 
-    // Now let's add all global metadata into every artwork, as that is actually the source of truth
+    // Now let's add all global metadata into every artwork, as that the artwork table is actually the source of truth
     artworkURIs().forEach((artworkURI) => {
       // License and certificate are handled separately, everything else is not so special
       const commonOverwritable = _.cloneDeep(commonMetadata)
@@ -390,22 +390,24 @@ function _successfulCatch(err) {
  */
 function _normalizeFields(metadata) {
   Object.keys(metadata).forEach((key) => {
-    const thisKey = lookupQualifiedName(key, metadata[key], false)
-    const betterKey = lookupQualifiedName(key, metadata[key])
-    if (betterKey && thisKey) {
-      if (betterKey !== thisKey) {
-        metadata[betterKey] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
-        delete metadata[key]
-        key = betterKey
-      } else if (thisKey !== key) {
-        metadata[thisKey] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
-        delete metadata[key]
-        key = thisKey
-      } else {
-        metadata[key] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
+    if (!_isObject(metadata[key])) {
+      const thisKey = lookupQualifiedName(key, metadata[key], false)
+      const betterKey = lookupQualifiedName(key, metadata[key])
+      if (betterKey && thisKey) {
+        if (betterKey !== thisKey) {
+          metadata[betterKey] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
+          delete metadata[key]
+          key = betterKey
+        } else if (thisKey !== key) {
+          metadata[thisKey] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
+          delete metadata[key]
+          key = thisKey
+        } else {
+          metadata[key] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
+        }
       }
+      updateObjectFieldWithAllSynonyms(metadata, key, metadata[key], false)
     }
-    updateObjectFieldWithAllSynonyms(metadata, key, metadata[key], false)
   })
   artworkURIs(metadata).forEach((artworkURI) => {
     Object.keys(metadata[artworkURI]).forEach((key) => {
@@ -792,40 +794,40 @@ function _prepareMetadataOfCertificates(metadata) {
   // NOTE: we already have normalized certificate fields by now
   artworkURIs(metadata).forEach((uri) => {
     let referencedCertificateUri = metadata[uri]['XMP-xmpRights:Certificate']
-    if (referencedCertificateUri) {
-      const certificateUriIsInlineTable = (typeof referencedCertificateUri === 'object' &&
-          !Array.isArray(referencedCertificateUri))
-      if (!certificateUriIsInlineTable) {
-        metadata[uri]['XMP-xmpRights:Certificate'] = {}
-        metadata[uri]['XMP-xmpRights:Certificate'][referencedCertificateUri] = {...metadata[referencedCertificateUri]}
-      } else {
-        if (typeof referencedCertificateUri === 'undefined') {
-          // We will still try to generate it with sensible defaults
-          const referencedCertificateUri = `${path.dirname(uri)}/${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`
-          if (metadata[referencedCertificateUri]) {
-            metadata[uri]['XMP-xmpRights:Certificate'] = metadata[referencedCertificateUri]
-          } else {
-            // Pretend it was prescribed in the toml file, but doesn't have any variables
-            metadata[uri]['XMP-xmpRights:Certificate'] = {}
-            metadata[uri]['XMP-xmpRights:Certificate'][referencedCertificateUri] = {}
-          }
-        } else {
-          if (!referencedCertificateUri) {
-            // Forced to be empty
-            delete metadata[`${path.dirname(uri)}/${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`]
-          } else {
-            referencedCertificateUri = Object.keys(referencedCertificateUri)[0]
-            // Merge both ways
-            metadata[uri]['XMP-xmpRights:Certificate'][referencedCertificateUri] = {
-              ...metadata[uri]['XMP-xmpRights:Certificate'][referencedCertificateUri],
-              ...metadata[referencedCertificateUri]
-            }
+    const certificateUriIsInlineTable = (typeof referencedCertificateUri === 'object' &&
+        !Array.isArray(referencedCertificateUri))
+    if (!certificateUriIsInlineTable) {
+      metadata[uri]['XMP-xmpRights:Certificate'] = {}
+      metadata[uri]['XMP-xmpRights:Certificate'][referencedCertificateUri] = {...metadata[referencedCertificateUri]}
+    }
 
-            metadata[referencedCertificateUri] = {
-              ...metadata[uri]['XMP-xmpRights:Certificate'][referencedCertificateUri],
-              ...metadata[referencedCertificateUri]
-            }
-          }
+    if (typeof referencedCertificateUri === 'undefined') {
+      // We will still try to generate it with sensible defaults
+      const referencedCertificateUri = `${path.dirname(uri)}/${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`
+      if (metadata[referencedCertificateUri]) {
+        metadata[uri]['XMP-xmpRights:Certificate'] = metadata[referencedCertificateUri]
+      } else {
+        // Pretend it was prescribed in the toml file, but doesn't have any variables
+        metadata[uri]['XMP-xmpRights:Certificate'] = {}
+        metadata[uri]['XMP-xmpRights:Certificate'][referencedCertificateUri] = {}
+      }
+    } else {
+      if (!referencedCertificateUri) {
+        // Forced to be empty
+        delete metadata[`${path.dirname(uri)}/${CERTIFICATE_FILE_NAME_WITHOUT_EXT}.pdf`]
+      } else {
+        if (certificateUriIsInlineTable) {
+          referencedCertificateUri = Object.keys(referencedCertificateUri)[0]
+        }
+        // Merge both ways
+        metadata[uri]['XMP-xmpRights:Certificate'][referencedCertificateUri] = {
+          ...metadata[uri]['XMP-xmpRights:Certificate'][referencedCertificateUri],
+          ...metadata[referencedCertificateUri]
+        }
+
+        metadata[referencedCertificateUri] = {
+          ...metadata[uri]['XMP-xmpRights:Certificate'][referencedCertificateUri],
+          ...metadata[referencedCertificateUri]
         }
       }
     }

@@ -2,7 +2,6 @@ import path from 'path'
 import {prepareMetadata, clean, artworkPaths, ingest} from '../src/metadata.js'
 import {prepareArtworks, tokenize} from '../src/artwork.js'
 import {collectFiles} from '../src/collectFiles.js'
-import {checkCertificates} from '../src/certificate.js'
 import {exiftool} from 'exiftool-vendored'
 
 try {
@@ -32,12 +31,24 @@ try {
 
   console.log('Preparing working files (without overwriting)...')
   await prepareArtworks(originalArtworkPaths, metadata, false)
-  console.log('Checking certificates of authenticity...')
-  checkCertificates(metadata)
+
+  /*
+   * NOTE: certificates are irrelevant in this step, as we don't need to overwrite them.
+   * They might be added only after executing the step1, because signing them is a "slow" procedure.
+   */
 
   console.log('Ingesting metadata (overwriting)...')
   await clean(artworkPaths())
   await ingest()
+
+  // TODO: move the above code into a reusable service.
+  // TODO: create a step12.js, then step3.js (for uploading to IPFS), then step123.js (for everything)
+
+  // TODO: (phase 2) make this a CLI tool
+  // TODO: (phase 2) make this a nodjs module, which works with the CLI tool
+
+  // TODO: (phase 2)make sure everything works on Windows, because we use a lot of file path manipulation
+  // TODO: (phase 2) improve debugging and logging
 
   console.log('Preparing NFTs...')
   await tokenize(metadata)

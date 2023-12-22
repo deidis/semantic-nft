@@ -3,7 +3,8 @@ import path from 'path'
 import sharp from 'sharp'
 import {artworkPreviewFileExtension, artworkURIs} from './metadata.js'
 import SemanticNFT from './SemanticNFT.js'
-import {updateObjectFieldWithAllSynonyms} from './vocabulary.js'
+import {lookupQualifiedName, updateObjectFieldWithAllSynonyms} from './vocabulary.js'
+import _ from 'lodash'
 
 export const ARTWORK_FILE_NAME_WITHOUT_EXT = 'artwork'
 export const ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT = 'preview'
@@ -45,6 +46,7 @@ export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMeta
     }
   })
 
+  // Preview specific metadata
   const previewPromises = []
   artworkURIs(preparedMetadata).forEach((artworkURI) => {
     const workingArtworkAbsolutePath = artworkURI.replace('file://', '')
@@ -62,12 +64,38 @@ export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMeta
         previewImageTitleStr = 'Preview of: ' + artworkTitle
       }
       const previewImageTitle = {}
-      updateObjectFieldWithAllSynonyms(previewImageTitle, 'XMP-dc:Title', previewImageTitleStr)
+      updateObjectFieldWithAllSynonyms(
+          previewImageTitle,
+          'XMP-dc:Title', previewImageTitleStr
+      )
 
+      preparedMetadata[`file://${absolutePreviewWorkingPath}`] =
+          preparedMetadata[`file://${absolutePreviewWorkingPath}`] || {}
+
+      Object.keys(preparedMetadata[`file://${absolutePreviewWorkingPath}`]).forEach((key) => {
+        const metadata = preparedMetadata[`file://${absolutePreviewWorkingPath}`]
+        const thisKey = lookupQualifiedName(key, metadata[key], false)
+        const betterKey = lookupQualifiedName(key, metadata[key])
+        if (betterKey && thisKey) {
+          if (betterKey !== thisKey) {
+            metadata[betterKey] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
+            delete metadata[key]
+            key = betterKey
+          } else if (thisKey !== key) {
+            metadata[thisKey] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
+            delete metadata[key]
+            key = thisKey
+          } else {
+            metadata[key] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
+          }
+        }
+        updateObjectFieldWithAllSynonyms(metadata, key, metadata[key], false)
+      })
+
+      // Keep any prescribed metadata specifically for the preview image
       preparedMetadata[`file://${absolutePreviewWorkingPath}`] = {
-        ...preparedMetadata[artworkURI],
         ...previewImageTitle,
-        ...preparedMetadata[`file://${absolutePreviewWorkingPath}`] // Keep any prescribed metadata
+        ...preparedMetadata[`file://${absolutePreviewWorkingPath}`]
       }
 
       // We don't need all the metadata from the artwork on the preview, so we can clean it up

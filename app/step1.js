@@ -32,6 +32,9 @@ try {
 
   console.log('Preparing working files...')
   await prepareArtworks(originalArtworkPaths, metadata)
+
+  // console.log(JSON.stringify(metadata, null, 2))
+
   console.log('Prepare certificates of authenticity...')
   await prepareCertificates(metadata)
 
@@ -40,8 +43,6 @@ try {
   await clean(artworkPaths())
   await ingest()
 
-  // TODO: remove from here
-  await tokenize(metadata)
   // console.log(JSON.stringify(metadata, null, 2))
 } catch (err) {
   // console.error('ERROR:', err.message)

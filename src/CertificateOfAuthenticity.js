@@ -141,6 +141,13 @@ export default class CertificateOfAuthenticity {
         this.#pdf.text(`${pdfVariablesFromMetadataKey}: ${vars[pdfVariablesFromMetadataKey]}`)
       }
     }
+
+    const tags = this.pdfInfoTagsFromMetadata()
+    for (const tag in tags) {
+      if (tags[tag]) {
+        this.#pdf.info[tag] = tags[tag]
+      }
+    }
   }
 
   /**

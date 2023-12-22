@@ -11,7 +11,7 @@ const synonyms = [
   ['XMP-dc:Creator', 'Exif:Artist', 'schema:creator'],
   ['XMP-dc:Date', 'schema:datePublished'],
   ['XMP-dc:Description', 'nft:description', 'schema:description'],
-  ['XMP-dc:Format',],
+  ['XMP-dc:Format', 'schema:encodingFormat',],
   ['XMP-dc:Identifier', 'schema:@id'],
   ['XMP-dc:Language',],
   ['XMP-dc:Publisher', 'schema:publisher'],
@@ -24,12 +24,11 @@ const synonyms = [
   // Doesn't have synonyms, and it's safe to update this field directly without updateObjectFieldWithAllSynonyms()
   ['XMP-xmpRights:Certificate',],
   ['XMP-xmpRights:Marked',],
-  ['XMP-xmpRights:Owner', 'schema:copyrightHolder',],
   ['XMP-xmpRights:UsageTerms',],
   ['XMP-xmpRights:WebStatement', 'schema:license',],
   ['Exif:Copyright',],
-  ['Exif:DateTimeDigitized', 'Exif:CreateDate', 'schema:dateCreated',], // UTC
-  ['Exif:DateTimeOriginal',], // UTC
+  ['Exif:DateTimeDigitized',], // UTC
+  ['Exif:DateTimeOriginal', 'Exif:CreateDate', 'schema:dateCreated'], // UTC
   ['Exif:DateTime', 'Exif:ModifyDate', 'schema:dateModified',], // UTC
   ['nft:image', 'schema:image', 'nft:image_url',],
   ['nft:image_details',],
@@ -39,8 +38,8 @@ const synonyms = [
   ['schema:additionalProperty',],
   ['schema:associatedMedia',],
   ['schema:@context',],
+  ['schema:copyrightHolder',],
   ['schema:copyrightYear',],
-  ['schema:encodingFormat',],
   ['schema:sameAs',],
   ['schema:version',],
 ]
@@ -163,9 +162,6 @@ const _best = (qualifiedKey, value) => {
  * @private
  */
 function _specialUpdateStructScalar(object, qualifiedKeyName, value, overwriteSynonyms) {
-  const isStruct = ['schema:contributor', 'schema:copyrightHolder', 'schema:publisher']
-      .includes(qualifiedKeyName)
-  const isShort = qualifiedKeyName === 'Exif:Artist'
   let scalarVal
   let shortVal
   let structVal
@@ -178,7 +174,7 @@ function _specialUpdateStructScalar(object, qualifiedKeyName, value, overwriteSy
         'name': name.trim(),
       })
     })
-    shortVal = structVal[0]
+    shortVal = structVal[0].name
   } else if (_.isArray(value) && value.length > 0) {
     const isArrayOfObjects = _.isObjectLike(value[0])
     if (isArrayOfObjects) {
@@ -195,12 +191,12 @@ function _specialUpdateStructScalar(object, qualifiedKeyName, value, overwriteSy
         })
       })
       scalarVal = value.join(', ')
-      shortVal = structVal[0]
+      shortVal = structVal[0].name
     }
   } else if (_.isObjectLike(value)) {
     // Assume schema.org format
-    structVal = shortVal = value
-    scalarVal = value.name
+    structVal = value
+    scalarVal = shortVal = value.name
   } else {
     // Unrecognized value, skip
   }
