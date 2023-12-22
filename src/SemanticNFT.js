@@ -60,6 +60,22 @@ export default class SemanticNFT {
     } else {
       // It's about EDA
     }
+
+    const certificateUri = Object.keys(this.#artworkMetadata['XMP-xmpRights:Certificate'])[0]
+    if (certificateUri) {
+      // As it's defined, we are sure it must exist in the working folder.
+      // So rather trust this fact instead of taking the path from the metadata, as it might not be fully prepared yet.
+      const absolutePathToCertificate = path.dirname(this.#artworkUri.replace('file://', '')) +
+          path.sep + CERTIFICATE_FILE_NAME_WITHOUT_EXT + '.pdf'
+
+      if (certificateUri !== `file://${absolutePathToCertificate}`) {
+        // This is normally made the same during certificate preparation,
+        // so here we have a situation where we're only doing the validation
+        this.#artworkMetadata['XMP-xmpRights:Certificate'][`file://${absolutePathToCertificate}`] =
+            this.#artworkMetadata['XMP-xmpRights:Certificate'][certificateUri]
+        delete this.#artworkMetadata['XMP-xmpRights:Certificate'][certificateUri]
+      }
+    }
   }
 
   build = async () => {
