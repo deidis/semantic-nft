@@ -147,6 +147,9 @@ async function _ingestMetadataForSpecificArtwork(artworkPathOrUri, tags) {
     if (['XMP-dc:Date'].includes(key)) {
       tagsAdjusted[key] = tagsAdjusted[key].toISOString().slice(0, 10)
     }
+    if (['Exif:ModifyDate', 'Exif:CreateDate', 'Exif:DateTimeOriginal'].includes(key)) {
+      tagsAdjusted[key] = tagsAdjusted[key].toISOString()
+    }
   })
 
   await exiftool.write(artworkPath, tagsAdjusted, ['-xmptoolkit=', '-overwrite_original'])
@@ -237,6 +240,7 @@ export function prepareMetadata(tomlFileAbsolutePaths) {
         Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate())
     )
   }
+
   updateObjectFieldWithAllSynonyms(
       result,
       'schema:datePublished',

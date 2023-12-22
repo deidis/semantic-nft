@@ -83,17 +83,12 @@ export default class SemanticNFT {
 
     await this._collectAssociatedMedia()
 
-    // TODO: take care of the date-related fields
-    // TODO: createDate = TODAY by default
-    // TODO: dateTimeDigitized = create date if not specified
-    // TODO: modifyDate - when certificate was signed
-    // TODO: image_url
-    // TODO: make sure title is set, it must be obligatory
+    // TODO: (phase 1) modifyDate - when certificate was signed, now I simply use the current date
+    // TODO: Make the dates fields with time 00:00:00 always, because we save without time in Schema
+    // TODO: createDate, TODAY by default
     // TODO: UsageTerms-> include the text of the license if webContent isn't provided
     // TODO: copyright year
     // TODO: sameAs
-    // TODO: add image, don't overwrite image_url???
-    // TODO: generate image_details
 
     // TODO: (phase 3) if @type is ImageObject, additionally set height, width, contentUrl of the associated media artwork
 
@@ -119,16 +114,28 @@ export default class SemanticNFT {
 
     tokenJsonObj = await this._mapToIpfs(tokenJsonObj, false)
 
-    // TODO: stringify datePublished with slice(0, 10)
     fs.writeSync(
         fs.openSync(path.join(path.dirname(this.#artworkUri.replace('file://', '')), 'nft.json'), 'w'),
-        JSON.stringify(tokenJsonObj, null, 2)
+        JSON.stringify(tokenJsonObj, function(key, value) {
+          switch (key) {
+            case 'datePublished':
+            case 'dateModified':
+            case 'dateCreated':
+              if (value.toISOString) {
+                return value.toISOString().slice(0, 10)
+              } else {
+                return (new Date(Date.parse(value))).toISOString().slice(0, 10)
+              }
+          }
+
+          return value
+        }, 2)
     )
   }
 
 
   _generateInfoDoc = async () => {
-    // TODO: implement generation of the informational doc. Add it to nft.json as associated media
+    // TODO: (phoase 1) implement generation of the informational doc. Add it to nft.json as associated media
   }
 
   /**
@@ -251,6 +258,16 @@ export default class SemanticNFT {
       artworkPreviewMedia['contentSize'] = `${artworkPreviewMediaMetadata['size']}`
       artworkPreviewMedia['width'] = `${artworkPreviewMediaMetadata['width']}`
       artworkPreviewMedia['height'] = `${artworkPreviewMediaMetadata['height']}`
+
+      if (!this.#artworkMetadata['nft:image_details']) {
+        this.#artworkMetadata['nft:image_details'] = {
+          'bytes': artworkPreviewMediaMetadata['size'],
+          'width': artworkPreviewMediaMetadata['width'],
+          'height': artworkPreviewMediaMetadata['height'],
+          'sha256': createHash('sha256').update(artworkPreviewFileBuffer).digest('hex'),
+          'format': mime.getType(this.#artworkPreviewUri).replace('image/', '').toUpperCase()
+        }
+      }
 
       artworkPreviewMedia['description'] = [
         `${artworkPreviewMediaMetadata.width} x ${artworkPreviewMediaMetadata.height}`,

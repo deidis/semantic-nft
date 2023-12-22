@@ -27,9 +27,9 @@ const synonyms = [
   ['XMP-xmpRights:UsageTerms',],
   ['XMP-xmpRights:WebStatement', 'schema:license',],
   ['Exif:Copyright',],
-  ['Exif:DateTimeDigitized',], // UTC
-  ['Exif:DateTimeOriginal', 'Exif:CreateDate', 'schema:dateCreated'], // UTC
-  ['Exif:DateTime', 'Exif:ModifyDate', 'schema:dateModified',], // UTC
+  ['Exif:CreateDate', 'schema:dateCreated'], // UTC
+  ['Exif:DateTimeOriginal'],
+  ['Exif:ModifyDate', 'schema:dateModified',], // UTC
   ['nft:image', 'schema:image', 'nft:image_url',],
   ['nft:image_details',],
   ['nft:external_url', 'schema:url',],

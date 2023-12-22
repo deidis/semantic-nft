@@ -98,6 +98,14 @@ export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMeta
           delete preparedMetadata[`file://${absolutePreviewWorkingPath}`][key]
         }
       })
+
+      if (!preparedMetadata[artworkURI]['nft:image']) {
+        updateObjectFieldWithAllSynonyms(
+            preparedMetadata[artworkURI],
+            'nft:image',
+            `file://${absolutePreviewWorkingPath}`,
+            false)
+      }
     })
     )
   })
