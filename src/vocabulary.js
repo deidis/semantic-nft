@@ -102,6 +102,10 @@ export function updateObjectFieldWithAllSynonyms(object, field, value, overwrite
           synonyms,
           ['XMP-dc:Contributor', 'XMP-dc:Creator', 'XMP-dc:Publisher', 'XMP-xmpRights:Owner']).length > 0) {
         _specialUpdateStructScalar(object, qualifiedName, value, overwriteSynonyms)
+      } if (_.intersection(
+          synonyms,
+          ['XMP-dc:Type']).length > 0) {
+        _specialUpdateType(object, qualifiedName, value, overwriteSynonyms)
       } else {
         synonyms.forEach((synonym) => {
           if (qualifiedName === synonym || overwriteSynonyms) {
@@ -151,6 +155,42 @@ const _best = (qualifiedKey, value) => {
         return synonymList[0]
       }
     }
+  }
+}
+
+/**
+ * @param {object} object
+ * @param {string} qualifiedKeyName
+ * @param {*} value
+ * @param {boolean} overwriteSynonyms
+ * @private
+ */
+function _specialUpdateType(object, qualifiedKeyName, value, overwriteSynonyms) {
+  let dcType
+  let schemaType
+  // TODO: (phase 2) we have to map the XMP-dc:Type and schema:@type better, now it's only Image/Photograph
+  if (qualifiedKeyName === 'XMP-dc:Type') {
+    dcType = value
+    if (dcType !== 'Image') {
+      schemaType = 'CreativeWork'
+    } else {
+      schemaType = 'Photograph'
+    }
+  } else {
+    schemaType = value
+    if (schemaType === 'Photograph') {
+      dcType = 'Image'
+    } else {
+      dcType = ''
+    }
+  }
+
+  if (overwriteSynonyms) {
+    object['XMP-dc:Type'] = dcType
+    object['schema:@type'] = schemaType
+  } else {
+    object['XMP-dc:Type'] = object['XMP-dc:Type'] ?? dcType
+    object['schema:@type'] = object['schema:@type'] ?? schemaType
   }
 }
 

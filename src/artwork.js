@@ -75,20 +75,14 @@ export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMeta
       Object.keys(preparedMetadata[`file://${absolutePreviewWorkingPath}`]).forEach((key) => {
         const metadata = preparedMetadata[`file://${absolutePreviewWorkingPath}`]
         const thisKey = lookupQualifiedName(key, metadata[key], false)
-        const betterKey = lookupQualifiedName(key, metadata[key])
-        if (betterKey && thisKey) {
-          if (betterKey !== thisKey) {
-            metadata[betterKey] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
-            delete metadata[key]
-            key = betterKey
-          } else if (thisKey !== key) {
-            metadata[thisKey] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
-            delete metadata[key]
-            key = thisKey
-          } else {
-            metadata[key] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
-          }
+        if (thisKey !== key) {
+          metadata[thisKey] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
+          delete metadata[key]
+          key = thisKey
+        } else {
+          metadata[key] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
         }
+
         updateObjectFieldWithAllSynonyms(metadata, key, metadata[key], false)
       })
 

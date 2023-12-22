@@ -188,6 +188,12 @@ export function prepareMetadata(tomlFileAbsolutePaths) {
     // NOTE: This is a shallow merge, so if there are duplicate keys, the last one wins
     Object.assign(result, tomlJson)
 
+    // Only this one is currently supported
+    result['schema:@context'] = 'https://schema.org/'
+    if (!result['schema:@type']) {
+      updateObjectFieldWithAllSynonyms(result, 'schema:@type', 'CreativeWork')
+    }
+
     // Now resolve the table headers into absolute file paths
     const describedArtworks = _mentionedArtworks(tomlFileAbsolutePath, tomlJson)
     for (const tomlTableHeader in describedArtworks) {
@@ -392,42 +398,28 @@ function _normalizeFields(metadata) {
   Object.keys(metadata).forEach((key) => {
     if (!_isObject(metadata[key])) {
       const thisKey = lookupQualifiedName(key, metadata[key], false)
-      const betterKey = lookupQualifiedName(key, metadata[key])
-      if (betterKey && thisKey) {
-        if (betterKey !== thisKey) {
-          metadata[betterKey] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
-          delete metadata[key]
-          key = betterKey
-        } else if (thisKey !== key) {
-          metadata[thisKey] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
-          delete metadata[key]
-          key = thisKey
-        } else {
-          metadata[key] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
-        }
+      if (thisKey !== key) {
+        metadata[thisKey] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
+        delete metadata[key]
+        key = thisKey
+      } else {
+        metadata[key] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
       }
+
       updateObjectFieldWithAllSynonyms(metadata, key, metadata[key], false)
     }
   })
   artworkURIs(metadata).forEach((artworkURI) => {
     Object.keys(metadata[artworkURI]).forEach((key) => {
       const thisKey = lookupQualifiedName(key, metadata[artworkURI][key], false)
-      const betterKey = lookupQualifiedName(key, metadata[artworkURI][key])
-      if (betterKey && thisKey) {
-        if (betterKey !== thisKey) {
-          metadata[artworkURI][betterKey] = _.isString(metadata[artworkURI][key]) ?
-              metadata[artworkURI][key].trim() : metadata[artworkURI][key]
-          delete metadata[artworkURI][key]
-          key = betterKey
-        } else if (thisKey !== key) {
-          metadata[artworkURI][thisKey] = _.isString(metadata[artworkURI][key]) ?
-              metadata[artworkURI][key].trim() : metadata[artworkURI][key]
-          delete metadata[artworkURI][key]
-          key = thisKey
-        } else {
-          metadata[artworkURI][key] = _.isString(metadata[artworkURI][key]) ?
-              metadata[artworkURI][key].trim() : metadata[artworkURI][key]
-        }
+      if (thisKey !== key) {
+        metadata[artworkURI][thisKey] = _.isString(metadata[artworkURI][key]) ?
+            metadata[artworkURI][key].trim() : metadata[artworkURI][key]
+        delete metadata[artworkURI][key]
+        key = thisKey
+      } else {
+        metadata[artworkURI][key] = _.isString(metadata[artworkURI][key]) ?
+            metadata[artworkURI][key].trim() : metadata[artworkURI][key]
       }
 
       if (key === 'XMP-dc:Identifier') {
@@ -441,29 +433,6 @@ function _normalizeFields(metadata) {
       }
 
       updateObjectFieldWithAllSynonyms(metadata[artworkURI], key, metadata[artworkURI][key], false)
-    })
-  })
-
-  _.difference(Object.keys(metadata), artworkURIs(metadata)).forEach((nonArtworkFileUriProbablyPreview) => {
-    Object.keys(metadata[nonArtworkFileUriProbablyPreview]).forEach((key) => {
-      const thisKey = lookupQualifiedName(key, metadata[nonArtworkFileUriProbablyPreview][key], false)
-      const betterKey = lookupQualifiedName(key, metadata[nonArtworkFileUriProbablyPreview][key])
-      if (betterKey && thisKey) {
-        if (betterKey !== thisKey) {
-          metadata[nonArtworkFileUriProbablyPreview][betterKey] =
-              _.isString(metadata[nonArtworkFileUriProbablyPreview][key]) ?
-              metadata[nonArtworkFileUriProbablyPreview][key].trim() : metadata[nonArtworkFileUriProbablyPreview][key]
-          delete metadata[nonArtworkFileUriProbablyPreview][key]
-        } else if (thisKey !== key) {
-          metadata[nonArtworkFileUriProbablyPreview][thisKey] =
-              _.isString(metadata[nonArtworkFileUriProbablyPreview][key]) ?
-                  metadata[nonArtworkFileUriProbablyPreview][key].trim() : metadata[nonArtworkFileUriProbablyPreview][key]
-          delete metadata[nonArtworkFileUriProbablyPreview][key]
-        } else {
-          metadata[nonArtworkFileUriProbablyPreview][key] = _.isString(metadata[nonArtworkFileUriProbablyPreview][key]) ?
-              metadata[nonArtworkFileUriProbablyPreview][key].trim() : metadata[nonArtworkFileUriProbablyPreview][key]
-        }
-      }
     })
   })
 

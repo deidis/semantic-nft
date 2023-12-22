@@ -83,13 +83,6 @@ export default class SemanticNFT {
 
     await this._collectAssociatedMedia()
 
-    // Only this one is currently supported
-    this.#artworkMetadata['schema:@context'] = 'https://schema.org/'
-
-    if (!this.#artworkMetadata['schema:@type']) {
-      this.#artworkMetadata['schema:@type'] = 'CreativeWork'
-    }
-
     // TODO: take care of the date-related fields
     // TODO: date, datePublished = TODAY by default
     // TODO: createDate = TODAY by default
