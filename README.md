@@ -37,12 +37,12 @@ By the way, ExifTool processes tags case-insensitive, so no stress when writing 
 
 Example 1:
 
-```toml
+```ini
 ["artwork.png"]
 ImageDescription = "ImageDescription field"
 ```
 
-```toml
+```ini
 ["artwork.png"]
 title = "title field"
 ```
@@ -51,12 +51,12 @@ According to Silvermind we put the same value into XMP-dc:Title and exif:ImageDe
 
 Example 2:
 
-```toml
+```ini
 ["artwork.png"]
 "exif:ImageDescription" = "ImageDescription field"
 ```
 
-```toml
+```ini
 ["artwork.png"]
 "XMP-dc:title" = "title field"
 ```
@@ -87,7 +87,7 @@ Signing a PDF out of scope of this project, as we only do the NFT part.
 However, you can conveniently prepare a PDF by using the `certificate` (i.e. `XMP-xmpRights:certificate`) tag.
 
 For example:
-```toml
+```ini
 ["artwork.png"]
 certificate='certificate.pdf'
 
@@ -103,7 +103,7 @@ For more examples, please refer to the [example project](./nft-workspace/example
 - Subject (PDF info tag to represent the description of the contents of the PDF, defaults to empty string)
 
 If you already have a certificate PDF and simply want to use it, you can do it like this:
-```toml
+```ini
 ["artwork.png"]
 # Get out of the scope of the current artwork
 certificate='/folder/where/certificate/is/artwork-certificate.pdf'
@@ -117,7 +117,7 @@ certificate='/folder/where/certificate/is/artwork-certificate.pdf'
 You can also specify metadata fields for the certificate that you already have, but be aware that if the certificate is digitally signed already, it will not be touched, as the signature will be broken.
 
 These two examples are equivalent:
-```toml
+```ini
 ["artwork.png"]
 # Get out of the scope of the current artwork
 certificate='/folder/where/certificate/is/artwork-certificate.pdf'
@@ -127,7 +127,7 @@ certificate='/folder/where/certificate/is/artwork-certificate.pdf'
 author='John Doe'
 ```
 
-```toml
+```ini
 ["artwork.png"]
 # This must be on a single line!!! Maybe better use the first variant? 
 certificate={'/folder/where/certificate/is/artwork-certificate.pdf' = {author='John Doe'}}
@@ -146,7 +146,7 @@ If you want to include the license file, you can use the field `license` in the 
 Relative paths to licenses are resolved from the root of the project.
 
 Example:
-```toml
+```ini
 # Global license for every artwork
 license='licensing/CC BY.txt'
 
@@ -171,7 +171,7 @@ or simply `copyright`.
 
 Example:
 
-```toml
+```ini
 copyright='This work is copyrighed by Author Name and is licensed under a Creative Commons Attribution-NonCommercial 4.0 International'
 ```
 
