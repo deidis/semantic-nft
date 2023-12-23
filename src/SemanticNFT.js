@@ -237,10 +237,8 @@ export default class SemanticNFT {
       }
     })
 
-
-    updateObjectFieldWithAllSynonyms(this.#artworkMetadata, 'nft:description', newDescription.trim(), false)
-
-    console.log(newDescription)
+    // NOTE: schema:description and nft:description ends up to be the same thing, so use the overwriteSynanyms=true
+    updateObjectFieldWithAllSynonyms(this.#artworkMetadata, 'nft:description', newDescription.trim(), true)
   }
 
   /**
