@@ -5,7 +5,7 @@ import fs from 'fs'
 import web3 from 'web3'
 import mime from 'mime'
 import sharp from 'sharp'
-import {calculateCID} from './ipfs.js'
+import {calculateCID, calculateWrappedCID} from './ipfs.js'
 import AdmZip from 'adm-zip'
 import {updateObjectFieldWithAllSynonyms} from './vocabulary.js'
 import {CERTIFICATE_FILE_NAME_WITHOUT_EXT, isSigned} from './certificate.js'
@@ -99,6 +99,7 @@ export default class SemanticNFT {
 
     await this._generateInfoDoc()
     await this._package()
+    this._appendDescriptionFooter()
 
     let tokenJsonObj = _.mapKeys(
         // It's not recursive, but the prefix is only used at the first level, so we're good
@@ -170,8 +171,11 @@ export default class SemanticNFT {
       const zip = new AdmZip()
       const outputFile = `${path.dirname(this.#artworkUri.replace('file://', ''))}`+
           path.sep + `${UNENCRYPTED_ARTEFACT_NAME_WITHOUT_EXTENSION}.zip`
+
+      const allFiles = [outputFile]
       for (const associatedMedia of this.#artworkMetadata['schema:associatedMedia']) {
         if (!!associatedMedia['contentUrl']) {
+          allFiles.push(associatedMedia['contentUrl'].replace('file://', ''))
           zip.addFile(
               path.basename(associatedMedia['contentUrl']),
               fs.readFileSync(associatedMedia['contentUrl'].replace('file://', ''))
@@ -180,19 +184,63 @@ export default class SemanticNFT {
       }
       await zip.writeZipPromise(outputFile)
       updateObjectFieldWithAllSynonyms(this.#artworkMetadata, 'schema:url', `file://${outputFile}`, false)
-      const additionalProperty = {
+      this._enrichSchemaAdditionalProperty({
         '@type': 'PropertyValue',
         'name': 'sha256',
-        'value': createHash('sha256')
-            .update(fs.readFileSync(outputFile)).digest('hex')
-      }
+        'value': createHash('sha256').update(fs.readFileSync(outputFile)).digest('hex')
+      })
 
-      this._enrichSchemaAdditionalProperty(additionalProperty)
+      // All files when uploaded to IPFS will be wrapped in a directory
+      this._enrichSchemaAdditionalProperty({
+        '@type': 'PropertyValue',
+        'name': 'directory',
+        'value': `ipfs://${await calculateWrappedCID(allFiles)}`
+      })
 
       console.debug(`Created ${outputFile}`)
     } else {
       // Nothing to do
     }
+  }
+
+  // TODO: (phase 2) make this somehow configurable, as we don't have it the toml, therefore might be a surprise for the user
+  _appendDescriptionFooter = () => {
+    const hasDescription = this.#artworkMetadata['nft:description']
+    let props = this.#artworkMetadata['schema:additionalProperty']
+    if (props) {
+      if (_isObject(props)) {
+        props = [props]
+      } else if (!Array.isArray(props)) {
+        return
+      }
+    } else {
+      return
+    }
+
+    let newDescription = this.#artworkMetadata['nft:description'] || ''
+
+    if (props.length > 0) {
+      if (hasDescription) {
+        newDescription = newDescription.trim() + '\n\n\n---\n\n\n'
+      }
+    }
+
+    props.forEach((prop) => {
+      if (prop['name'] === 'directory') {
+        newDescription += `All files: <${prop['value']}>\n\n`
+      }
+    })
+
+    props.forEach((prop) => {
+      if (prop['name'] === 'sha256') {
+        newDescription += `Artefact sha256: ${prop['value']}\n\n`
+      }
+    })
+
+
+    updateObjectFieldWithAllSynonyms(this.#artworkMetadata, 'nft:description', newDescription.trim(), false)
+
+    console.log(newDescription)
   }
 
   /**
@@ -365,7 +413,7 @@ export default class SemanticNFT {
       return
     } else {
       if (_isObject(artworkMetadata['schema:additionalProperty'])) {
-        artworkMetadata['schema:additionalProperty'] = Object.values(artworkMetadata['schema:additionalProperty'])
+        artworkMetadata['schema:additionalProperty'] = [artworkMetadata['schema:additionalProperty']]
       }
     }
 
@@ -456,7 +504,7 @@ export default class SemanticNFT {
  * @private
  */
 function _isObject(variable) {
-  return typeof variable === 'object' && variable !== null && !Array.isArray(variable)
+  return typeof variable === 'object' && variable !== null && !Array.isArray(variable) && !(variable instanceof Date)
 }
 
 /**
