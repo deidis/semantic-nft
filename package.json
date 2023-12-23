@@ -30,6 +30,7 @@
     "@signpdf/signpdf": "^3.1.0",
     "@signpdf/utils": "^3.1.0",
     "adm-zip": "^0.5.10",
+    "dotenv": "^16.3.1",
     "exiftool-vendored": "^23.6.0",
     "files-from-path": "^1.0.4",
     "ipfs-car": "^1.0.0",

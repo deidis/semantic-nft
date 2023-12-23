@@ -5,7 +5,7 @@ import fs from 'fs'
 import web3 from 'web3'
 import mime from 'mime'
 import sharp from 'sharp'
-import {calculateCID, calculateWrappedCID} from './ipfs.js'
+import {calculateCID, calculateWrappedCID, ipfsUriToHttpsUri} from './ipfs.js'
 import AdmZip from 'adm-zip'
 import {updateObjectFieldWithAllSynonyms} from './vocabulary.js'
 import {CERTIFICATE_FILE_NAME_WITHOUT_EXT, isSigned} from './certificate.js'
@@ -79,7 +79,7 @@ export default class SemanticNFT {
   }
 
   build = async () => {
-    const validate = true
+    const validate = false
 
     await this._collectAssociatedMedia()
 
@@ -130,7 +130,7 @@ export default class SemanticNFT {
           }
 
           return value
-        }, 2)
+        }/* , 2 */)
     )
   }
 
@@ -147,9 +147,8 @@ export default class SemanticNFT {
    * @private
    */
   _mapToIpfs = async (metadata, alsoUpload = false) => {
-    // TODO: (phase 2) uplaod to IPFS and get the token ID this way
     if (alsoUpload || !alsoUpload) {
-      return await _mapObjectRecursivelyAsync(metadata, async (value) => {
+      return await _mapObjectRecursivelyAsync(metadata, async (value, key) => {
         if (_.isString(value) && value.startsWith('file://')) {
           return await calculateCID(value.replace('file://', '')).then((cid) => {
             return `ipfs://${cid}`
@@ -183,7 +182,6 @@ export default class SemanticNFT {
         }
       }
       await zip.writeZipPromise(outputFile)
-      updateObjectFieldWithAllSynonyms(this.#artworkMetadata, 'schema:url', `file://${outputFile}`, false)
       this._enrichSchemaAdditionalProperty({
         '@type': 'PropertyValue',
         'name': 'sha256',
@@ -191,11 +189,30 @@ export default class SemanticNFT {
       })
 
       // All files when uploaded to IPFS will be wrapped in a directory
+      const ipfsDirCID = await calculateWrappedCID(allFiles)
       this._enrichSchemaAdditionalProperty({
         '@type': 'PropertyValue',
         'name': 'directory',
-        'value': `ipfs://${await calculateWrappedCID(allFiles)}`
+        'value': `ipfs://${ipfsDirCID}`
       })
+
+      if (!this.#artworkMetadata['nft:external_url']) {
+        // NOTE: this is a user facing link normally presented by marketplaces. Hence, we show the web url on HTTPS
+        this.#artworkMetadata['nft:external_url'] = ipfsUriToHttpsUri(ipfsDirCID)
+      }
+
+      if (!this.#artworkMetadata['schema:url']) {
+        // NOTE: this is maybe confusing, but we're pointing to the packaged zip file,
+        // as this is the real artefact that the token (schema.org/CreativeWork) represents.
+        // There's a temptation to use the same url as nft:external_url, but that's questionable if it would be correct...
+        // Because the sha256 is on the zip file, not on the directory.
+        updateObjectFieldWithAllSynonyms(
+            this.#artworkMetadata,
+            'schema:url',
+            `file://${outputFile}`,
+            /* IMPORTANT! = false */false
+        )
+      }
 
       console.debug(`Created ${outputFile}`)
     } else {
@@ -221,21 +238,22 @@ export default class SemanticNFT {
 
     if (props.length > 0) {
       if (hasDescription) {
-        newDescription = newDescription.trim() + '\n\n\n---\n\n\n'
+        // newDescription = newDescription.trim() + '\n\n\n---\n\n\n'
+        newDescription = newDescription.trim() + '\n\n'
       }
     }
 
     props.forEach((prop) => {
       if (prop['name'] === 'directory') {
-        newDescription += `All files: <${prop['value']}>\n\n`
+        newDescription += `All files: [${prop['value']}](${ipfsUriToHttpsUri(prop['value'])})`
       }
     })
 
-    props.forEach((prop) => {
-      if (prop['name'] === 'sha256') {
-        newDescription += `Artefact sha256: ${prop['value']}\n\n`
-      }
-    })
+    // props.forEach((prop) => {
+    //   if (prop['name'] === 'sha256') {
+    //     newDescription += `Artefact sha256: ${prop['value']}\n\n`
+    //   }
+    // })
 
     // NOTE: schema:description and nft:description ends up to be the same thing, so use the overwriteSynanyms=true
     updateObjectFieldWithAllSynonyms(this.#artworkMetadata, 'nft:description', newDescription.trim(), true)
@@ -281,6 +299,7 @@ export default class SemanticNFT {
 
     if (artworkPubliclyAvailable) {
       artworkMedia['contentUrl'] = this.#artworkUri
+      artworkMedia['url'] = this.#artworkUri
     }
 
     if (this.#artworkPreviewUri) {
@@ -292,6 +311,7 @@ export default class SemanticNFT {
         'identifier': path.basename(this.#artworkPreviewUri),
         'name': _.capitalize(path.basename(this.#artworkPreviewUri, path.extname(this.#artworkPreviewUri))),
         'contentUrl': this.#artworkPreviewUri,
+        'url': this.#artworkPreviewUri,
         'encodingFormat': mime.getType(this.#artworkPreviewUri),
         'additionalProperty': {
           '@type': 'PropertyValue',
@@ -336,6 +356,7 @@ export default class SemanticNFT {
         'identifier': path.basename(licenseUri),
         'name': 'License',
         'contentUrl': licenseUri,
+        'url': licenseUri,
         'encodingFormat': mime.getType(licenseUri),
         'contentSize': fs.statSync(licenseUri.replace('file://', '')).size,
       })
@@ -360,6 +381,7 @@ export default class SemanticNFT {
         'identifier': path.basename(certificateUri),
         'name': 'Certificate of Authenticity',
         'contentUrl': certificateUri,
+        'url': certificateUri,
         'encodingFormat': mime.getType(certificateUri),
         'contentSize': fs.statSync(certificateUri.replace('file://', '')).size,
         'additionalProperty': {
@@ -525,7 +547,7 @@ async function _mapObjectRecursivelyAsync(obj, asyncCallback) {
           newObj[key] = await _mapObjectRecursivelyAsync(obj[key], asyncCallback)
         }
       } else {
-        newObj[key] = await asyncCallback(obj[key])
+        newObj[key] = await asyncCallback(obj[key], key)
       }
     }
   }
