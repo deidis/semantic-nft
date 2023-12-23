@@ -7,6 +7,7 @@
     "step1": "node app/step1.js",
     "step2": "node app/step2.js",
     "version": "node app/version.js",
+    "check": "node app/check.js",
     "test": "mocha"
   },
   "type": "module",

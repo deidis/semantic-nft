@@ -236,9 +236,7 @@ export function prepareMetadata(tomlFileAbsolutePaths) {
   // Default datePublished
   let datePublished = result['schema:datePublished']
   if (!datePublished) {
-    datePublished = new Date(
-        Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate())
-    )
+    datePublished = new Date()
   }
 
   updateObjectFieldWithAllSynonyms(
