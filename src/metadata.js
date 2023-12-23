@@ -432,7 +432,7 @@ function _normalizeFields(metadata) {
   Object.keys(metadata).forEach((key) => {
     if (!_isObject(metadata[key])) {
       const thisKey = lookupQualifiedName(key, metadata[key], false)
-      if (thisKey !== key) {
+      if (thisKey && thisKey !== key) {
         metadata[thisKey] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
         delete metadata[key]
         key = thisKey
@@ -446,7 +446,7 @@ function _normalizeFields(metadata) {
   artworkURIs(metadata).forEach((artworkURI) => {
     Object.keys(metadata[artworkURI]).forEach((key) => {
       const thisKey = lookupQualifiedName(key, metadata[artworkURI][key], false)
-      if (thisKey !== key) {
+      if (thisKey && thisKey !== key) {
         metadata[artworkURI][thisKey] = _.isString(metadata[artworkURI][key]) ?
             metadata[artworkURI][key].trim() : metadata[artworkURI][key]
         delete metadata[artworkURI][key]

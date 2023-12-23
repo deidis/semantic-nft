@@ -11,8 +11,13 @@ try {
 
   // Collect files from the arguments
   const files = args.flatMap((arg) => {
-    return collectFiles(path.resolve(arg), 0)
+    return collectFiles(path.resolve(arg), 0, '*')
   })
+
+  if (files.length === 0) {
+    console.log('No files found')
+    process.exit(1)
+  }
 
   console.log(await calculateWrappedCID(files))
   for (const file of files) {

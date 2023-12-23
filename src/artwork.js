@@ -75,7 +75,7 @@ export async function prepareArtworks(originalArtworkAbsolutePaths, preparedMeta
       Object.keys(preparedMetadata[`file://${absolutePreviewWorkingPath}`]).forEach((key) => {
         const metadata = preparedMetadata[`file://${absolutePreviewWorkingPath}`]
         const thisKey = lookupQualifiedName(key, metadata[key], false)
-        if (thisKey !== key) {
+        if (thisKey && thisKey !== key) {
           metadata[thisKey] = _.isString(metadata[key]) ? metadata[key].trim() : metadata[key]
           delete metadata[key]
           key = thisKey
