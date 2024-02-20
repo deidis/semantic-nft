@@ -4,6 +4,20 @@ import {prepareArtworks, tokenize} from '../src/artwork.js'
 import {collectFiles} from '../src/collectFiles.js'
 import {exiftool} from 'exiftool-vendored'
 
+/**
+ * STEP2:
+ * We expect that all the artefacts are prepared and ready to be compiled and saved as NFT.
+ * The important part is that certificates of authenticity are signed by the authenticating parties.
+ *
+ * During run of this script the artefacts are updated to have certificate information,
+ * and additionally:
+ * - the artefact zip file is created
+ * - nft.json is created
+ *
+ * So after running this step we've got everything that we need to mint NFTs.
+ * However, the files aren't uploaded to IPFS yet (only their IPFS content IDs are calculated).
+ */
+
 try {
   const args = process.argv.slice(2)
   if (args.length === 0) {

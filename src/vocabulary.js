@@ -100,6 +100,7 @@ export function updateObjectFieldWithAllSynonyms(object, field, value, overwrite
     } else {
       if (_.intersection(
           synonyms,
+          // TODO: also include synonyms, e.g. Exif:Artist, because one may specify an inline table there
           ['XMP-dc:Contributor', 'XMP-dc:Creator', 'XMP-dc:Publisher', 'XMP-xmpRights:Owner']).length > 0) {
         _specialUpdateStructScalar(object, qualifiedName, value, overwriteSynonyms)
       } if (_.intersection(

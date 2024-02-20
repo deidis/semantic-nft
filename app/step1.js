@@ -5,6 +5,15 @@ import {collectFiles} from '../src/collectFiles.js'
 import {prepareCertificates} from '../src/certificate.js'
 import {exiftool} from 'exiftool-vendored'
 
+/**
+ * STEP1:
+ * This script prepares all the metadata, ingests it into respective places,
+ * and also creates the certificates of authenticity. As the certificates aren't signed,
+ * they need to be signed manually before proceeding to STEP2.
+ *
+ * So we can conclude that during this step all artefacts are prepared.
+ */
+
 try {
   const args = process.argv.slice(2)
   if (args.length === 0) {
