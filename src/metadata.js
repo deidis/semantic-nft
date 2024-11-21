@@ -217,6 +217,7 @@ export function prepareMetadata(tomlFileAbsolutePaths) {
   _normalizeFields(result)
   _prepareMetadataOfLicenses(result)
   _prepareMetadataOfCertificates(result)
+  _prepareMetadataOfAssociatedMedia(result)
 
   // Only this one is currently supported
   result['schema:@context'] = 'https://schema.org/'
@@ -537,6 +538,31 @@ function _prepareMetadataOfLicenses(metadata) {
         metadata[artworkURI]['XMP-xmpRights:Marked'] = (
             metadata[artworkURI]['XMP-xmpRights:Marked'].toString() === 'false' ? 'false' : 'true'
         )
+      }
+    }
+  })
+}
+
+/**
+ * @param {object} metadata
+ * @private
+ */
+function _prepareMetadataOfAssociatedMedia(metadata) {
+  artworkURIs(metadata).forEach((uri) => {
+    let associatedMediaPath = metadata[uri]['schema:associatedMedia']?.['contentUrl']
+    if (associatedMediaPath) {
+      // Relative paths are relative to the artwork file
+      const originalArtworkNameWithoutExt = path.basename(uri, path.extname(uri))
+      const absoluteDir = path.dirname(uri).replace('file://', '')
+
+      if (!associatedMediaPath.startsWith('.')) {
+        associatedMediaPath = `./${associatedMediaPath}`
+      }
+
+      // Now resolve the relative path to the absolute path
+      associatedMediaPath = path.resolve(absoluteDir + path.sep + associatedMediaPath)
+      if (associatedMediaPath) {
+        metadata[uri]['schema:associatedMedia']['contentUrl'] = `file://${associatedMediaPath}`
       }
     }
   })

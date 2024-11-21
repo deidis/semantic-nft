@@ -28,6 +28,11 @@ export default class SemanticNFT {
    * @type {string}
    */
   #artworkPreviewUri
+
+  /**
+   * @type {string}
+   */
+  #associatedMediaUri
   /**
    * @type {string}
    */
@@ -44,7 +49,8 @@ export default class SemanticNFT {
   constructor(
       artworkWorkingFileUri,
       artworkRelatedMetadata,
-      previewWorkingFileUri = null) {
+      previewWorkingFileUri = null,
+  ) {
     this.#artworkMetadata = artworkRelatedMetadata
     this.#artworkUri = artworkWorkingFileUri
     this.#artworkPreviewUri = previewWorkingFileUri
@@ -76,6 +82,11 @@ export default class SemanticNFT {
         delete this.#artworkMetadata['XMP-xmpRights:Certificate'][certificateUri]
       }
     }
+
+    if (this.#artworkMetadata['schema:associatedMedia']?.['contentUrl']) {
+      this.#associatedMediaUri = this.#artworkMetadata['schema:associatedMedia']['contentUrl']
+    }
+    delete this.#artworkMetadata['schema:associatedMedia']
   }
 
   build = async () => {
@@ -358,7 +369,7 @@ export default class SemanticNFT {
         'contentUrl': licenseUri,
         'url': licenseUri,
         'encodingFormat': mime.getType(licenseUri),
-        'contentSize': fs.statSync(licenseUri.replace('file://', '')).size,
+        'contentSize': `${fs.statSync(licenseUri.replace('file://', '')).size}`,
       })
 
       if (licenseUri.startsWith('file://')) {
@@ -383,7 +394,7 @@ export default class SemanticNFT {
         'contentUrl': certificateUri,
         'url': certificateUri,
         'encodingFormat': mime.getType(certificateUri),
-        'contentSize': fs.statSync(certificateUri.replace('file://', '')).size,
+        'contentSize': `${fs.statSync(certificateUri.replace('file://', '')).size}`,
         'additionalProperty': {
           '@type': 'PropertyValue',
           'name': 'sha256',
@@ -391,6 +402,50 @@ export default class SemanticNFT {
               .update(fs.readFileSync(certificateUri.replace('file://', ''))).digest('hex')
         },
       })
+    }
+
+    if (this.#associatedMediaUri) {
+      const associatedMediaFileBuffer = fs.readFileSync(this.#associatedMediaUri.replace('file://', ''))
+      const associatedMediaMime = mime.getType(this.#associatedMediaUri)
+      const associatedMediaId = this.#artworkMetadata['schema:associatedMedia']['id'] ||
+          path.basename(this.#associatedMediaUri)
+      const associatedMediaName = this.#artworkMetadata['schema:associatedMedia']['name'] ||
+          _.capitalize(path.basename(this.#associatedMediaUri, path.extname(this.#associatedMediaUri)))
+
+      const associatedMedia = {
+        '@type': associatedMediaMime.startsWith('image') ? 'ImageObject' :
+            (associatedMediaMime.startsWith('text') ? 'TextObject' :
+                (associatedMediaMime.startsWith('video') ? 'VideoObject' :
+                    (associatedMediaMime.startsWith('audio') ? 'AudioObject' :
+                        (associatedMediaMime === 'model/stl' ? '3DModel' : 'MediaObject')))),
+        'identifier': associatedMediaId,
+        'name': associatedMediaName,
+        'contentUrl': this.#associatedMediaUri,
+        'url': this.#associatedMediaUri,
+        'encodingFormat': associatedMediaMime,
+        'contentSize': `${fs.statSync(this.#associatedMediaUri.replace('file://', '')).size}`,
+        'additionalProperty': {
+          '@type': 'PropertyValue',
+          'name': 'sha256',
+          'value': createHash('sha256').update(associatedMediaFileBuffer).digest('hex')
+        }
+      }
+
+      if (associatedMediaMime.startsWith('image')) {
+        const associatedMediaMetadata = await sharp(associatedMediaFileBuffer).metadata()
+        associatedMedia['contentSize'] = `${associatedMediaMetadata['size']}`
+        associatedMedia['width'] = `${associatedMediaMetadata['width']}`
+        associatedMedia['height'] = `${associatedMediaMetadata['height']}`
+
+        associatedMedia['description'] = [
+          `${associatedMediaMetadata.width} x ${associatedMediaMetadata.height}`,
+          associatedMediaMetadata.width > associatedMediaMetadata.height ? 'landscape' : (
+              associatedMediaMetadata.width < associatedMediaMetadata.height ? 'portrait' : 'square'),
+          associatedMediaMetadata.density ?
+              `${associatedMediaMetadata.density} pixels per ${associatedMediaMetadata.resolutionUnit}` : ''
+        ].filter((section) => !!section).join(', ')
+      }
+      this._enrichSchemaAssociatedMedia(associatedMedia)
     }
   }
 

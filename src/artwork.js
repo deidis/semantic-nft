@@ -5,6 +5,7 @@ import {artworkPreviewFileExtension, artworkURIs} from './metadata.js'
 import SemanticNFT from './SemanticNFT.js'
 import {lookupQualifiedName, updateObjectFieldWithAllSynonyms} from './vocabulary.js'
 import _ from 'lodash'
+import mime from 'mime'
 
 export const ARTWORK_FILE_NAME_WITHOUT_EXT = 'artwork'
 export const ARTWORK_PREVIEW_FILE_NAME_WITHOUT_EXT = 'preview'
@@ -204,7 +205,39 @@ function _copyLicensesToWorkingDir(metadata, overwrite = true) {
  * @private
  */
 function _copyOtherAssociatedMediaToWorkingDir(metadata, overwrite = true) {
-// TODO: (phase 2) collect all files that were prescribed in schema:associatedMedia and adjust the metadata accordingly
+  artworkURIs(metadata).forEach((artworkURI) => {
+    const associatedMediaUri = metadata[artworkURI]['schema:associatedMedia']?.['contentUrl']
+    if (associatedMediaUri && associatedMediaUri.startsWith('file://')) {
+      const associatedMediaAbsolutePath = associatedMediaUri.replace('file://', '')
+
+      let fileName = path.basename(associatedMediaUri)
+      if (metadata[artworkURI]['schema:associatedMedia']?.['identifier'] &&
+          mime.getType(associatedMediaUri) ===
+          mime.getType(metadata[artworkURI]['schema:associatedMedia']?.['identifier'])) {
+        fileName = path.basename(metadata[artworkURI]['schema:associatedMedia']?.['identifier'])
+      }
+
+      const associatedMediaWorkingFilePath =
+          `${path.dirname(artworkURI.replace('file://', ''))}/${fileName}`
+
+      if (fs.existsSync(associatedMediaWorkingFilePath)) {
+        if (overwrite) {
+          fs.copyFileSync(
+              associatedMediaAbsolutePath,
+              associatedMediaWorkingFilePath
+          )
+        }
+      } else {
+        fs.copyFileSync(
+            associatedMediaAbsolutePath,
+            associatedMediaWorkingFilePath
+        )
+      }
+
+      // Update the metadata to point to the working file
+      metadata[artworkURI]['schema:associatedMedia']['contentUrl'] = `file://${associatedMediaWorkingFilePath}`
+    }
+  })
 }
 
 
